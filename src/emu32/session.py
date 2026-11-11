@@ -419,3 +419,22 @@ class Session:
             except ValueError as error:
                 values.append((expression, str(error)))
         return values
+
+
+def syntax_words() -> dict[str, frozenset[str]]:
+    """Word lists for syntax coloring, so the editor needs no assembler imports."""
+    from emu32.assembler.data_pass import DATA_SIZES, RESERVE_SIZES
+    from emu32.assembler.encode import MNEMONICS
+    from emu32.assembler.operands import REGISTER_BITS
+
+    directives = {
+        *DATA_SIZES, *RESERVE_SIZES, "dup", "equ", "proc", "endp", "end", "include",
+        "includelib", "offset", "ptr", "lengthof", "sizeof", "type", "times", "section",
+        "global", "extern", "org", "option", "proto",
+    }  # fmt: skip
+    return {
+        "instructions": MNEMONICS,
+        "registers": frozenset(REGISTER_BITS),
+        "directives": frozenset(directives),
+        "routines": frozenset(runtime.library_routines.ROUTINES),
+    }

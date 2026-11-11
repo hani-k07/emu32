@@ -32,6 +32,9 @@ Repository = "https://github.com/hani-k07/emu32"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+emu32 = ["examples/*.asm"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

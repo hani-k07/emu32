@@ -6,7 +6,7 @@ from conftest import CODE, DATA
 from emu32.assembler import AssemblyError, assemble
 from emu32.emulator import Emulator, StopReason
 
-EXAMPLES = Path(__file__).parent.parent / "examples"
+EXAMPLES = Path(__file__).parent.parent / "src" / "emu32" / "examples"
 
 
 def run(source, intel_syntax=False, max_steps=None):

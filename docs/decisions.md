@@ -231,3 +231,43 @@ A watch may use registers (including AX, AL and the other parts), variables (the
 the first element, signed for SBYTE, SWORD and SDWORD), constants, numbers in any accepted
 format, `+ - * / mod`, `OFFSET`, `SIZEOF`, `LENGTHOF`, `TYPE`, and `[expression]`, which
 reads a dword from memory. Errors come back as short messages.
+
+## D29. Examples ship inside the package (2026-11-11)
+
+Section 5.2 puts `examples/` at the repository root. Files outside the package do not reach
+a `pip install`, so the examples live in `src/emu32/examples/` and are declared as package
+data. The editor finds them with `importlib.resources`.
+
+## D30. GUI module layout (2026-11-11)
+
+Besides the modules in section 5.2, the GUI has `code_editor.py` (editor and gutter),
+`highlighter.py`, `settings.py` (settings, recent files, app-data folder), `errors.py`
+(error dialog and log), `theme.py`, `icons.py`, `templates.py` and `worker.py`.
+
+## D31. Themes (2026-11-11)
+
+Light and dark themes both set every palette color on the Fusion style, so the window looks
+the same whatever the system's own light or dark setting is. Without a saved choice, the
+theme follows the system setting. A render on a Windows machine in dark mode showed the
+light theme mixing a dark editor with light syntax colors before this change.
+
+## D32. App data, autosave and the log (2026-11-11)
+
+Settings, the log (`emu32.log`) and autosave files live in the user's app-data folder
+(`QStandardPaths.AppDataLocation`). The `EMU32_HOME` environment variable overrides it; tests
+use it, and the portable build can use it to keep everything next to the program. Every
+20 seconds each changed tab is written to `autosave/`; a clean exit deletes those files, so
+their presence at start means emu32 did not close normally, and it offers to restore them.
+
+## D33. Source file encoding (2026-11-11)
+
+Files are written as UTF-8. Reading tries UTF-8 (with or without a byte order mark) first
+and falls back to Windows-1252, which older course files often use; the status bar says so,
+and the next save writes UTF-8.
+
+## D34. Parts that come in later milestones (2026-11-11)
+
+In M5, Emulate compiles and then says the emulator window comes in the next version (M6).
+Calculator, Converter, ASCII table, the syntax reference and the tutorial are in the menus
+but disabled or show a short note until M7. Toolbar icons are drawn at run time as colored
+tiles with a symbol, so the project ships no image files.
