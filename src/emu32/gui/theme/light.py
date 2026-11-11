@@ -1,0 +1,26 @@
+"""Light palette. Same token names as the dark one; checked by scripts/check_contrast.py."""
+
+PALETTE = {
+    "bg.base": "#FFFFFF",
+    "bg.panel": "#F4F5F7",
+    "bg.raised": "#ECEEF2",
+    "border": "#D5D9E0",
+    "border.control": "#7C8494",
+    "text.primary": "#1B1F27",
+    "text.muted": "#555E6D",
+    "text.on-accent": "#FFFFFF",
+    "accent": "#1F5FBF",
+    "selection": "#C8DBF7",
+    "ok": "#1D7A4B",
+    "warn": "#8A5A00",
+    "error": "#C2313B",
+    "changed": "#FFF0B3",
+    "current-line": "#EEF3FB",
+    "syn.instruction": "#1F4FB3",
+    "syn.register": "#7A2E8E",
+    "syn.number": "#9A4400",
+    "syn.string": "#23702A",
+    "syn.comment": "#5F6775",
+    "syn.directive": "#B3261E",
+    "syn.label": "#755600",
+}

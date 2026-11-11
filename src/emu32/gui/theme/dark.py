@@ -1,0 +1,26 @@
+"""Dark palette (the default). Checked by scripts/check_contrast.py."""
+
+PALETTE = {
+    "bg.base": "#111318",
+    "bg.panel": "#171A21",
+    "bg.raised": "#1E222B",
+    "border": "#2A2F3A",
+    "border.control": "#6B7486",
+    "text.primary": "#E6E9EF",
+    "text.muted": "#9AA3B2",
+    "text.on-accent": "#0B1220",
+    "accent": "#4F9CFF",
+    "selection": "#2D4F7C",
+    "ok": "#4CC38A",
+    "warn": "#E5B454",
+    "error": "#F0646E",
+    "changed": "#2B3A55",
+    "current-line": "#1C2432",
+    "syn.instruction": "#7AB4FF",
+    "syn.register": "#D3A6F7",
+    "syn.number": "#F0B072",
+    "syn.string": "#8FD9A6",
+    "syn.comment": "#8E98AA",
+    "syn.directive": "#FF8F88",
+    "syn.label": "#F2D479",
+}
