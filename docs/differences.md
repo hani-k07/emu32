@@ -31,8 +31,8 @@ there is one, the supported form.
 | nested `STRUCT` fields and `UNION` | use BYTE, WORD, DWORD or QWORD fields |
 | `EXTERN`, `EXTERNDEF`: a program split over several source files | put every procedure in one file |
 | `PROC C` and other calling conventions | procedures always use stdcall: they remove their own arguments |
-| library procedures `WriteStackFrame`, `MsgBox`, `GetMaxXY`, `ReadFloat` and file procedures | not provided |
-| `DT`, `TBYTE`, `REAL4`, `REAL8` | 80-bit and floating-point data are not supported |
+| library procedures `WriteStackFrame`, `MsgBox`, `GetMaxXY` and file procedures | not provided |
+| `WriteFloat` output | emu32's own format, `+1.2345000E+001` (eight significant digits) |
 | `INCLUDE` of files other than `Irvine32.inc` and `Macros.inc` | not supported |
 | jumps to `$+n` or `$-n` | put a label at the target (`jmp $` alone works) |
 | non-ASCII characters in strings | not supported |

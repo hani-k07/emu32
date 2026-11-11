@@ -218,3 +218,54 @@ END main
 def test_error_messages(source, line, text):
     found = errors(source)
     assert any(n == line and text in message for n, message in found), found
+
+
+def test_fpu_program():
+    output = run((PROGRAMS / "q05_fpu.asm").read_text(encoding="utf-8"), "1.5\n")
+    assert output == (
+        "+1.9634954E+001\n20\n+3.0000000E+000\nsum > 0.5\n+1.0000000E+005\n"
+        "Enter a number: 1.5\n+2.2500000E+000\n"
+        "ST(0): +2.2500000E+000\nST(1): +1.0000000E+005\n"
+    )
+
+
+def test_read_float_rejects_text_with_overflow_flag():
+    body = 'call ReadFloat\njno ok\nmWrite "bad "\nok: call WriteFloat'
+    assert run(program(body), "abc\n").endswith("bad +0.0000000E+000")
+
+
+def test_write_float_on_an_empty_stack_is_a_friendly_error():
+    session = Session()
+    session.load(program("call WriteFloat"))
+    outcome = session.run()
+    assert outcome.reason is StopReason.ERROR
+    assert "FPU stack is empty" in outcome.message
+
+
+def test_step_back_restores_the_fpu_stack():
+    session = Session()
+    session.load(program("fld1\nfldpi", "x REAL8 2.0"))
+    session.step()
+    session.step()
+    assert session.emulator.fpu_stack()[:2] == [pytest.approx(3.14159265), 1.0]
+    session.step_back()
+    assert session.emulator.fpu_stack()[:2] == [1.0, None]
+
+
+@pytest.mark.parametrize("value", [0.0, 1.0, -2.5, 1e10, 3.141592653589793, -1e-300])
+def test_real10_round_trip(value):
+    from emu32.assembler.data_pass import pack_real
+    from emu32.emulator.core import extended_to_float
+
+    raw = pack_real(value, 10)
+    mantissa, exponent = int.from_bytes(raw[:8], "little"), int.from_bytes(raw[8:], "little")
+    assert extended_to_float(mantissa, exponent) == value
+
+
+def test_real_data_and_float_literal_errors():
+    session = Session()
+    program_ = session.load(program("nop", "a REAL4 1.5\nb REAL8 -2.0E+3\nc REAL10 ?"))
+    assert [program_.symbols[n].size for n in "abc"] == [4, 8, 10]
+    assert errors(program("nop", "d DWORD 1.5")) == [
+        (3, "1.5 is a floating-point number; declare it as REAL4 or REAL8")
+    ]

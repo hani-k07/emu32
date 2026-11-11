@@ -19,7 +19,7 @@ _NAME_RE = re.compile(rf"(?<![\w@?$.]){NAME}")
 _OPERATOR_RE = re.compile(rf"(?<![\w@?$])(offset|sizeof|lengthof|type)\s+({NAME})")
 _LOCATION_RE = re.compile(r"(?<![\w@?$])\$(?![\w@?$])")
 _QUOTED_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
-_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword|qword)\s+ptr\s+(.*)$")
+_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword|qword|tbyte)\s+ptr\s+(.*)$")
 _SIGNED_PTR_RE = re.compile(r"\bs(byte|word|dword)\s+ptr\b")
 
 REGISTER_BITS = {
@@ -28,9 +28,12 @@ REGISTER_BITS = {
     **dict.fromkeys(("al", "ah", "bl", "bh", "cl", "ch", "dl", "dh"), 8),
     **dict.fromkeys(("cs", "ds", "es", "fs", "gs", "ss"), 16),
 }
-SIZE_NAMES = {1: "byte", 2: "word", 4: "dword", 8: "qword"}
+SIZE_NAMES = {1: "byte", 2: "word", 4: "dword", 8: "qword", 10: "tbyte"}
+_REAL_PTR_RE = re.compile(r"\b(real4|real8|real10)\s+ptr\b")
+_REAL_SIZE = {"real4": "dword", "real8": "qword", "real10": "tbyte"}
 KEYWORDS = frozenset(REGISTER_BITS) | {
-    "ptr", "byte", "word", "dword", "qword", "short", "near", "far",
+    "ptr", "byte", "word", "dword", "qword", "tbyte", "real4", "real8", "real10", "short",
+    "near", "far",
 }  # fmt: skip
 
 _BINARY_OPS = {
@@ -183,6 +186,7 @@ def _eval(node: ast.AST) -> int:
 def rewrite_operand(text: str, scope: Scope, nasm: bool) -> str:
     """Turn one source operand into text Keystone understands."""
     op = apply_operators(text, scope)
+    op = _REAL_PTR_RE.sub(lambda m: f"{_REAL_SIZE[m.group(1)]} ptr", op)
     if "[" not in op and set(names_in(op)) & _WORD_OPERATORS.keys():
         # `1 SHL 4` or `MASK AND 0Fh` as an immediate: work it out here.
         return hex(evaluate(op, scope, 0) & 0xFFFFFFFF)

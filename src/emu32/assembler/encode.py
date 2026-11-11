@@ -128,6 +128,7 @@ class _Item:
 
 _SIZE_OF_TYPE = {
     "byte": 1, "sbyte": 1, "word": 2, "sword": 2, "dword": 4, "sdword": 4, "qword": 8,
+    "real4": 4, "real8": 8, "real10": 10,
 }  # fmt: skip
 _PROC_ATTRIBUTES = {"near", "far", "public", "private", "stdcall", "c", "pascal"}
 _FRAME_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword)\s+ptr\s+(.*)$")
@@ -700,6 +701,7 @@ class _Assembler:
             try:
                 texts = self._expand_invoke(item) if item.invoke else [item.text]
                 texts = [self._rewrite(text, item) for text in texts]
+                texts = [part for text in texts for part in _split_wait(text)]
             except AsmError as error:
                 self.errors.append(AsmMessage(item.line, error.text))
                 continue
@@ -817,6 +819,18 @@ class _Assembler:
                     )
             return f"invalid operand in '{text}'"
         return _ks_text(error)
+
+
+# These FPU instructions are a WAIT followed by the no-wait form, two instructions in the
+# machine code; keeping them apart keeps one entry per instruction in the line map.
+_WAIT_FORMS = {"finit", "fclex", "fstsw", "fstcw", "fsave", "fstenv"}
+
+
+def _split_wait(text: str) -> list[str]:
+    mnemonic, _, operands = text.partition(" ")
+    if mnemonic not in _WAIT_FORMS:
+        return [text]
+    return ["wait", f"fn{mnemonic[1:]} {operands}".strip()]
 
 
 def _ks_text(error: keystone.KsError) -> str:

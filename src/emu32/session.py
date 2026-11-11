@@ -211,6 +211,7 @@ class Session:
         self._require()
         emu, ip = self.emulator, self.mode.instruction_pointer
         before = emu.registers()
+        fpu_before = emu.fpu_state()
         insn = self._decode(before[ip])
         snapshot = (emu.total_steps, emu.exited, self.console.length())
         emu.start_recording()
@@ -225,7 +226,7 @@ class Session:
             accesses = tuple(emu.stop_recording())
         writes = tuple(a for a in accesses if a.kind == "write")
         if result.steps or writes:
-            self.history.push(HistoryEntry(before, writes, *snapshot))
+            self.history.push(HistoryEntry(before, writes, *snapshot, fpu=fpu_before))
         record = None
         if insn is not None:
             after = emu.registers()

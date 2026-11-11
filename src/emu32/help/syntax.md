@@ -261,9 +261,33 @@ Anonymous labels: `@@:` with `jmp @F` (the next one) and `jmp @B` (the previous 
 Constant expressions may use `+ - * / MOD`, `AND OR XOR NOT` and `SHL SHR`; use
 parentheses when mixing shifts with `+` or `-`.
 
+## Floating point (x87 FPU)
+
+```
+.data
+radius REAL8 2.5            ; also REAL4 (single) and REAL10 (extended)
+area   REAL8 ?
+.code
+    finit
+    fldpi                   ; ST(0) = pi
+    fld    radius
+    fmul   st(0), st(0)     ; r * r
+    fmul                    ; pi * r * r
+    fstp   area
+    fld    area
+    call   WriteFloat       ; +1.9634954E+001
+```
+
+`WriteFloat` prints ST(0) in scientific notation and leaves it on the stack;
+`ReadFloat` reads a number and pushes it (text that is not a number pushes 0.0
+and sets OF); `ShowFPUStack` prints ST(0) to ST(7). `REAL8 PTR [esi]` reads a
+REAL8 through a pointer. The FPU starts as in a Windows program: every register
+empty, 53-bit precision. The **FPU** panel shows the register stack and the
+status word while you step; step back restores it too.
+
 ## Not supported
 
-Programs split over several files (`EXTERN`), floating-point data (`REAL4`),
+Programs split over several files (`EXTERN`),
 conditional assembly (`IF`, `REPT`, `FOR`), and jumps to `$+n`. The assembler names
 the construct and suggests what to write instead.
 

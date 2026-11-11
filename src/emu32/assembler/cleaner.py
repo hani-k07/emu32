@@ -12,7 +12,8 @@ _QUOTED = re.compile(r"'[^']*'|\"[^\"]*\"")
 # 0Ah, 1010b, 12d, 10. Hex must start with a digit, as in MASM, so `ah` and `bh` stay
 # registers. Plain decimals are converted too, so a leading zero never means octal.
 _SUFFIX_NUMBER = re.compile(
-    r"(?<![\w@?$.])(?:([0-9][0-9a-f]*)h|([01]+)b|([0-9]+)d|([0-9]+))(?![\w@?$])"
+    r"(?<![\w@?$.])(?:([0-9]+\.[0-9]*(?:e[+-]?[0-9]+)?)|([0-9][0-9a-f]*)h|([01]+)b|([0-9]+)d"
+    r"|([0-9]+))(?![\w@?$])"
 )
 
 
@@ -50,7 +51,9 @@ def _strip_comment(text: str) -> str:
 
 def _convert_numbers(text: str) -> str:
     def to_hex(match: re.Match) -> str:
-        hex_digits, binary, decimal, plain = match.groups()
+        real, hex_digits, binary, decimal, plain = match.groups()
+        if real is not None:
+            return real  # a floating-point literal for REAL4/REAL8/REAL10
         if hex_digits is not None:
             return hex(int(hex_digits, 16))
         if binary is not None:

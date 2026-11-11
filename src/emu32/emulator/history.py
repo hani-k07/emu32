@@ -17,6 +17,7 @@ class HistoryEntry:
     total_steps: int
     exited: bool
     console_length: int
+    fpu: tuple | None = None
 
 
 class History:
@@ -42,5 +43,7 @@ def undo(emu: Emulator, entry: HistoryEntry) -> None:
         emu.uc.mem_write(access.address, access.old)
     for name, value in entry.registers.items():
         emu.set_register(name, value)
+    if entry.fpu is not None:
+        emu.set_fpu_state(entry.fpu)
     emu.total_steps = entry.total_steps
     emu.exited = entry.exited
