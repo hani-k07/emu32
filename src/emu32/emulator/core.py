@@ -21,6 +21,23 @@ class StopReason(enum.Enum):
     EXITED = "exited"
     ERROR = "error"
     STOPPED = "stopped"
+    BREAKPOINT = "breakpoint"
+
+
+@dataclass(frozen=True)
+class MemoryAccess:
+    address: int
+    kind: str  # "read" or "write"
+    data: bytes  # bytes read, or bytes written
+    old: bytes = b""  # for writes: the bytes that were there before
+
+    @property
+    def size(self) -> int:
+        return len(self.data)
+
+    @property
+    def value(self) -> int:
+        return int.from_bytes(self.data, "little")
 
 
 @dataclass(frozen=True)
@@ -87,6 +104,13 @@ class Emulator:
         self._last_block: list[int] = []
         self._fault: tuple[str, int] | None = None
         self._stop_requested = False
+        # Breakpoint address -> Unicorn hook handle. Each hook covers one address, so the
+        # check runs in C and costs nothing at other addresses.
+        self._breakpoints: dict[int, int | None] = {}
+        self._skip_break: int | None = None
+        self._break_hit: int | None = None
+        self._recording: list[MemoryAccess] | None = None
+        self._record_hooks: list[int] = []
 
     # Loading
 
@@ -111,6 +135,10 @@ class Emulator:
         uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._on_invalid_memory)
         self.uc = uc
         self._block_starts.clear()
+        self._recording = None
+        self._record_hooks = []
+        for address in self._breakpoints:
+            self._breakpoints[address] = self._hook_breakpoint(address)
 
         # `ret` from the entry procedure lands on the exit stub, which ends the program.
         sp = mode.region("stack").end - mode.word_size
@@ -142,6 +170,63 @@ class Emulator:
         if self.uc is not None:
             self.uc.emu_stop()
 
+    # Breakpoints
+
+    @property
+    def breakpoints(self) -> frozenset[int]:
+        return frozenset(self._breakpoints)
+
+    def add_breakpoint(self, address: int) -> None:
+        if address not in self._breakpoints:
+            self._breakpoints[address] = self._hook_breakpoint(address) if self.uc else None
+
+    def remove_breakpoint(self, address: int) -> None:
+        handle = self._breakpoints.pop(address, None)
+        if handle is not None and self.uc is not None:
+            self.uc.hook_del(handle)
+
+    def _hook_breakpoint(self, address: int) -> int:
+        return self.uc.hook_add(
+            unicorn.UC_HOOK_CODE, self._on_breakpoint, begin=address, end=address
+        )
+
+    def _on_breakpoint(self, uc: unicorn.Uc, address: int, size: int, _data: object) -> None:
+        if address == self._skip_break:
+            # A run that starts on a breakpoint executes that instruction.
+            self._skip_break = None
+            return
+        self._break_hit = address
+        uc.emu_stop()  # stops before the instruction runs
+
+    # Memory access recording, used for single steps only
+
+    def start_recording(self) -> None:
+        self._recording = []
+        self._record_hooks = [
+            self.uc.hook_add(unicorn.UC_HOOK_MEM_READ, self._on_access),
+            self.uc.hook_add(unicorn.UC_HOOK_MEM_WRITE, self._on_access),
+        ]
+
+    def stop_recording(self) -> list[MemoryAccess]:
+        for handle in self._record_hooks:
+            self.uc.hook_del(handle)
+        self._record_hooks = []
+        accesses, self._recording = self._recording or [], None
+        return accesses
+
+    def _on_access(
+        self, uc: unicorn.Uc, access: int, address: int, size: int, value: int, _data: object
+    ) -> None:
+        try:
+            current = bytes(uc.mem_read(address, size))
+        except unicorn.UcError:
+            return  # the invalid-memory hook reports this access
+        if access == unicorn.UC_MEM_WRITE:
+            data = (value & ((1 << (8 * size)) - 1)).to_bytes(size, "little")
+            self._recording.append(MemoryAccess(address, "write", data, current))
+        else:
+            self._recording.append(MemoryAccess(address, "read", current))
+
     def exit_program(self, code: int = 0) -> None:
         """End the program from inside a hook (exit services)."""
         self.exit_code = code
@@ -159,6 +244,7 @@ class Emulator:
         if self.exited:
             return RunResult(StopReason.EXITED, 0, "the program has ended")
         self._stop_requested = False
+        self._skip_break = self.register(self._ip)
         done = 0
         while done < limit:
             count = min(self.chunk_size, limit - done)
@@ -176,6 +262,8 @@ class Emulator:
             ):
                 self.exited = True
                 return RunResult(StopReason.EXITED, done)
+            if self._break_hit is not None:
+                return RunResult(StopReason.BREAKPOINT, done, address=self._break_hit)
             if self._stop_requested:
                 return RunResult(StopReason.STOPPED, done)
         return RunResult(StopReason.LIMIT, done)
@@ -184,6 +272,7 @@ class Emulator:
         self._counted = 0
         self._last_block = []
         self._fault = None
+        self._break_hit = None
         self._exit_requested = False
         resume_at = None
         try:
@@ -277,6 +366,10 @@ class Emulator:
 
     def write_memory(self, address: int, data: bytes) -> None:
         try:
+            if self._recording is not None:
+                # Writes made by services (ReadString) are logged too, so step back undoes them.
+                old = bytes(self.uc.mem_read(address, len(data)))
+                self._recording.append(MemoryAccess(address, "write", bytes(data), old))
             self.uc.mem_write(address, data)
         except unicorn.UcError as error:
             raise EmulatorError(

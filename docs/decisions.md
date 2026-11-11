@@ -182,3 +182,52 @@ Section 5.3 lists the service set in the `CpuMode` interface. The runtime reads 
 registers by name (EDX, EAX), which a 16-bit mode would replace with segment:offset
 addressing, so it would need its own runtime module anyway. The stub addresses come from the
 mode's memory map. The service set is not modelled in `CpuMode` until a second mode exists.
+
+## D23. Breakpoints (2026-11-11)
+
+Each breakpoint is a Unicorn code hook limited to its one address, so Run keeps its speed:
+the check happens in C and no Python runs at other addresses. A run or step that starts on
+a breakpoint executes that instruction. Breakpoints are kept by source line; on load and
+reload they are mapped to addresses again, and a line without an instruction moves to the
+next line that has one.
+
+## D24. Single steps and library routines (2026-11-11)
+
+A single step on `call WriteString` also runs the routine, so a step never stops inside a
+library stub, which has no source line. Step over on a call into the program's own code
+runs until the call returns to the same stack frame (the stack pointer is compared, so a
+recursive call returning to the same address from a deeper frame does not stop it).
+Breakpoints inside the called procedure still stop.
+
+## D25. Step back (2026-11-11)
+
+History entries hold the main registers, the old bytes of every memory write in the step
+(captured by a memory-write hook attached only during single steps, plus writes made by
+services such as `ReadString`), the step counter, the ended flag and the console length.
+Step back restores all of these, so printed output disappears again. Input that a step
+consumed is not given back. Limit 10,000 entries; Run and step over clear the history.
+Step delay mode keeps it, because it is made of single steps.
+
+## D26. Trace records (2026-11-11)
+
+Each single step produces a record: address, bytes, text, source line, registers before and
+after, memory accesses (address, read or write, bytes, old bytes) and the ALU operation for
+arithmetic, logic, shift and compare instructions. ALU inputs come from Capstone's decoded
+operands and the registers before the step; MUL, IMUL, DIV and IDIV with one operand also
+show EAX. The last 100 records are kept for the Aux window. Run does not produce records,
+because that would need a per-instruction hook.
+
+## D27. Worker thread and step delay (2026-11-11)
+
+`gui/worker.py` holds the only Qt code for running: a `QThread` worker that calls Session
+methods and reports results as signals. The step delay loop itself lives in
+`Session.run_with_delay`, which waits on a threading event, so Stop also cuts a long pause
+short and the loop is testable without Qt. `Console.cancel` only acts while a read is
+waiting, so a Stop pressed during computation cannot cancel a later read.
+
+## D28. Watch expressions (2026-11-11)
+
+A watch may use registers (including AX, AL and the other parts), variables (the value of
+the first element, signed for SBYTE, SWORD and SDWORD), constants, numbers in any accepted
+format, `+ - * / mod`, `OFFSET`, `SIZEOF`, `LENGTHOF`, `TYPE`, and `[expression]`, which
+reads a dword from memory. Errors come back as short messages.
