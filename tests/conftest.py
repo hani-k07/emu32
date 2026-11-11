@@ -20,6 +20,14 @@ def assemble(source: str) -> bytes:
     return bytes(_ks.asm(source, CODE)[0])
 
 
+@pytest.fixture(autouse=True)
+def app_home(tmp_path, monkeypatch):
+    """Settings, log and autosave go to a fresh folder for every test."""
+    home = tmp_path / "app data"
+    monkeypatch.setenv("EMU32_HOME", str(home))
+    return home
+
+
 @pytest.fixture
 def run_asm():
     """Load and run a snippet; keyword arguments preset registers, e.g. eax=5."""
