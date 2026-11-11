@@ -72,8 +72,8 @@ emu32.ini
 tmp/
 .cache/
 out/
-examples/**/*.bin
-examples/**/*.lst
+**/examples/**/*.bin
+**/examples/**/*.lst
 
 # Observation notes are text only; screenshots stay local.
 docs/observations/**/*.png
