@@ -63,6 +63,7 @@ def test_load_shows_registers_memory_and_disassembly(window):
     assert window.source.toPlainText() == LOOP
     texts = [row[2] for row in model.rows]
     assert "call WriteDec" in texts and "call exit" in texts
+    assert "loop top" in texts
 
 
 def test_single_step_marks_changed_registers(window, qtbot):
@@ -162,13 +163,10 @@ def test_stop_ends_a_run(window, qtbot):
 
 def test_step_delay_mode_refreshes_between_steps(window, qtbot):
     window.load_source(LOOP)
-    window.delay.setValue(20)
-    seen = []
-    window.runner.stepped.connect(lambda outcome: seen.append(outcome))
+    window.delay.setValue(50)  # about 11 steps, so the run lasts about half a second
     window.command("run")
-    qtbot.waitUntil(lambda: len(seen) >= 3, timeout=5000)
-    qtbot.wait(60)  # at least one refresh tick between steps
-    assert window.aux.trace.count() >= 1
+    # Panels fill in while the program is still running, from the pauses between steps.
+    qtbot.waitUntil(lambda: window.aux.trace.count() >= 2 and window.runner.busy, timeout=3000)
     finish(qtbot, window)
     assert window.screen.output.toPlainText() == "6"
 
