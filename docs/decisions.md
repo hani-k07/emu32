@@ -89,3 +89,51 @@ which is easier for a student to understand than silent self-modifying code.
 
 `CpuMode` holds the mode facts as fields; `MODE32` is the one instance. A 16-bit mode is a
 second instance. The service set (section 5.3) is added in M3 together with the services.
+
+## D11. Assembler module layout (2026-11-11)
+
+Section 5.2 lists `cleaner`, `directives`, `data_pass`, `operands`, `encode`, `linemap` and
+`errors`. Directive handling, the code pass and the line map share one small state object, so
+they live together in `encode.py`. The other modules match the list.
+
+## D12. Number conversion (2026-11-11)
+
+The cleaner rewrites every number outside strings to `0x` hex: `0Ah`, `1010b`, `10d` and
+plain decimals. Keystone does not accept the `b` suffix, and converting plain decimals means
+a leading zero (`010`) is always decimal, as in MASM. Digits right after a dot are left alone
+so `.386` stays a directive. Character constants (`'A'`) are converted in operands and
+expressions; in `db` they are strings.
+
+## D13. `$` and label arithmetic (2026-11-11)
+
+Keystone does not accept `$`. In code, the assembler puts a hidden label before the
+instruction and uses it in place of `$`, so `jmp $` works. Keystone also rejects a jump to
+`label+n`, so `jmp $+2` is reported as unsupported with a hint. In data and constants `$` is
+the current data address, so `len = $ - msg` works.
+
+## D14. Finding every assembly error (2026-11-11)
+
+Keystone stops at the first error and does not say which line it was on. When the whole
+program fails, each instruction is assembled again on its own, followed by definitions of
+every code label, so references still resolve. Every failing line is reported. Keystone
+error codes become plain messages: unknown instruction, unknown name, operand sizes that do
+not match, invalid operand.
+
+## D15. Telling instructions from data and names (2026-11-11)
+
+The list of x86 mnemonics comes from Capstone (`insn_name` for every instruction id). It
+separates `push dword [x]` from a variable named `push`, and rejects variable and label
+names that are instruction names, such as `str` or `test`.
+
+## D16. Entry point (2026-11-11)
+
+Order: the label named by `END name`, then `main`, then `_start` (Intel/NASM style), then the
+first code label, then the start of the code section. Section 6.1 names `main` first; `END`
+is checked before it because it is the explicit choice when both exist.
+
+## D17. Intel/NASM syntax mode (2026-11-11)
+
+Keystone runs with its NASM syntax option. The front-end still splits sections and packs
+data, because data must go to the data region, which is writable, and code to the read-only
+code region. A variable name stands for its address, with no size inference. See
+`docs/differences.md` for the supported directives.
