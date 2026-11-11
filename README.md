@@ -14,7 +14,9 @@ Download ZIP** button gives the source code, not the program.
 - Emulator window: registers, memory, disassembly, stack, variables, flags, screen
 - Single step, step over, step back, run with a step delay, breakpoints and watches
 - A CPU structure view that shows fetch, decode and execute in a simple model
-- MASM style (as used in most courses) and Intel/NASM style
+- Runs the MASM programs written for Visual Studio and the Irvine32 library unchanged:
+  `INVOKE`, `.IF`/`.WHILE`/`.REPEAT`, macros (with `mWrite`), `STRUCT`, `QWORD`, `LOCAL`
+- Intel/NASM style as well
 - Built-in console library (`WriteString`, `ReadInt`, ...) and `int 21h` services
 - Converter, calculator and ASCII table; a quick start tutorial and references
 - Works offline; projector mode for teaching
@@ -80,7 +82,8 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
 
 - 32-bit only. A 16-bit mode is planned.
 - Release downloads are for Windows. On Linux and macOS, install with pip.
-- Flat memory without segments; `INVOKE`, `.IF`, macros and structures are not supported.
+- Flat memory without segments; one source file per program; no floating-point data and
+  no conditional assembly (`IF`, `REPT`).
   [docs/differences.md](docs/differences.md) lists everything emu32 does differently.
 - Step back covers the last 10,000 single steps; Run clears it. The trace window lists
   single steps only.
@@ -89,7 +92,10 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
 ## For instructors
 
 [docs/classroom.md](docs/classroom.md) explains how to put emu32 on lab PCs, what is
-supported, and how to check a release on a clean machine.
+supported, and how to check a release on a clean machine. Students coming from Visual
+Studio can open Help > Coming from Visual Studio: it lists what carries over and how the
+debugger panels match Visual Studio's windows. `tests/vs_programs` holds the course-style
+programs that every build is tested with.
 
 ## Contributing
 

@@ -11,6 +11,7 @@ PAGES = {
     "quickstart": "Quick start",
     "syntax": "Syntax reference",
     "instructions": "Instruction reference",
+    "visual_studio": "Coming from Visual Studio",
 }
 
 

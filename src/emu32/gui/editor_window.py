@@ -174,6 +174,9 @@ class EditorWindow(QMainWindow):
             "instructions": self._action(
                 "&Instruction reference", lambda: show_help(self, "instructions")
             ),
+            "visual_studio": self._action(
+                "Coming from &Visual Studio", lambda: show_help(self, "visual_studio")
+            ),
             "welcome": self._action("&Welcome window", self.show_welcome),
             "about": self._action("&About emu32", self.show_about, icon_name="about"),
         }
@@ -210,7 +213,9 @@ class EditorWindow(QMainWindow):
         bar.addMenu("Ma&th").addActions([a["calculator"], a["converter"]])
         bar.addMenu("A&SCII codes").addAction(a["ascii"])
         help_menu = bar.addMenu("&Help")
-        help_menu.addActions([a["tutorial"], a["reference"], a["instructions"], a["welcome"]])
+        help_menu.addActions(
+            [a["tutorial"], a["reference"], a["instructions"], a["visual_studio"], a["welcome"]]
+        )
         help_menu.addSeparator()
         help_menu.addActions([a["options"], a["about"]])
         self._fill_recent_menu()

@@ -664,3 +664,13 @@ Precedence follows Python's (shifts below + and -), so `1 SHL 4 + 1` is 32 where
 17; parentheses give the same result in both. In `.IF`/`.WHILE` conditions, `SDWORD PTR`
 on a register now only selects a signed compare, as in MASM, instead of reaching the
 assembler as an operand size.
+
+## D73. Help for students coming from Visual Studio, and three new examples (2026-11-12)
+
+A help page, Help > Coming from Visual Studio, lists what carries over from a Visual Studio
+MASM project, maps Visual Studio's debugger windows to emu32's panels, and names the
+differences (fixed flat addresses, one source file, no Windows API beyond ExitProcess, no
+floating point or conditional assembly). The Memory panel's address box now also takes a
+variable name, with or without `&`, as Visual Studio's Memory window does. Three examples
+show the new MASM features: grade_report (.IF/.ELSEIF/.WHILE), employee_records (an array
+of STRUCT records) and add_64bit (QWORD addition with ADD and ADC).
