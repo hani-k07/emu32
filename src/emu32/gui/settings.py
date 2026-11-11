@@ -60,3 +60,26 @@ def add_recent_file(path: str) -> list[str]:
     files = [path, *(f for f in recent_files() if f != path)][:RECENT_LIMIT]
     put("recent_files", files)
     return files
+
+
+PORTABLE_MARKER = "portable.txt"
+
+
+def use_portable_home(program_dir: Path) -> bool:
+    """In the portable build, keep settings, log and autosave next to the program.
+
+    The release's portable folder has a `portable.txt` marker. If that folder cannot be
+    written (a read-only network share), the normal app-data folder is used instead.
+    """
+    if "EMU32_HOME" in os.environ or not (program_dir / PORTABLE_MARKER).exists():
+        return False
+    home = program_dir / "data"
+    try:
+        home.mkdir(exist_ok=True)
+        probe = home / ".write-test"
+        probe.write_text("ok", encoding="utf-8")
+        probe.unlink()
+    except OSError:
+        return False
+    os.environ["EMU32_HOME"] = str(home)
+    return True
