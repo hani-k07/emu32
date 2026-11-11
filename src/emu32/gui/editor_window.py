@@ -34,7 +34,9 @@ from emu32.gui.dialogs import (
     looks_like_intel,
     read_source,
 )
+from emu32.gui.help_window import show_help
 from emu32.gui.icons import icon
+from emu32.gui.tools import show_tool
 from emu32.session import Session
 
 FILE_FILTER = "Assembly files (*.asm *.s *.inc);;All files (*)"
@@ -97,6 +99,9 @@ class EditorWindow(QMainWindow):
         geometry = settings.settings().value("editor_geometry")
         if isinstance(geometry, QByteArray):
             self.restoreGeometry(geometry)
+        state = settings.settings().value("editor_state")
+        if isinstance(state, QByteArray):
+            self.restoreState(state)
 
         self.autosave_timer = QTimer(self)
         self.autosave_timer.timeout.connect(self.autosave)
@@ -116,7 +121,6 @@ class EditorWindow(QMainWindow):
         return action
 
     def _build_actions(self) -> None:
-        later = self._not_yet
         self.act = {
             "new": self._action("&New...", self.new_file_dialog, "Ctrl+N", "new"),
             "open": self._action("&Open...", self.open_dialog, "Ctrl+O", "open"),
@@ -154,12 +158,19 @@ class EditorWindow(QMainWindow):
                 "Toggle &breakpoint", lambda: self._doc("toggle_breakpoint"), "Ctrl+B"
             ),
             "emulate": self._action("&Emulate", self.emulate, "Ctrl+F5", "emulate"),
-            "calculator": self._action("&Calculator", later, icon_name="calculator", enabled=False),
-            "converter": self._action("C&onverter", later, icon_name="converter", enabled=False),
-            "ascii": self._action("&ASCII table", later, enabled=False),
+            "calculator": self._action(
+                "&Calculator", lambda: show_tool(self, "calculator"), icon_name="calculator"
+            ),
+            "converter": self._action(
+                "C&onverter", lambda: show_tool(self, "converter"), icon_name="converter"
+            ),
+            "ascii": self._action("&ASCII table", lambda: show_tool(self, "ascii")),
             "options": self._action("&Options...", self.options_dialog, icon_name="options"),
             "tutorial": self._action("&Quick start tutorial", self.show_quick_start, "F1", "help"),
-            "reference": self._action("&Syntax reference", later, enabled=False),
+            "reference": self._action("&Syntax reference", lambda: show_help(self, "syntax")),
+            "instructions": self._action(
+                "&Instruction reference", lambda: show_help(self, "instructions")
+            ),
             "welcome": self._action("&Welcome window", self.show_welcome),
             "about": self._action("&About emu32", self.show_about, icon_name="about"),
         }
@@ -196,7 +207,7 @@ class EditorWindow(QMainWindow):
         bar.addMenu("Ma&th").addActions([a["calculator"], a["converter"]])
         bar.addMenu("A&SCII codes").addAction(a["ascii"])
         help_menu = bar.addMenu("&Help")
-        help_menu.addActions([a["tutorial"], a["reference"], a["welcome"]])
+        help_menu.addActions([a["tutorial"], a["reference"], a["instructions"], a["welcome"]])
         help_menu.addSeparator()
         help_menu.addActions([a["options"], a["about"]])
         self._fill_recent_menu()
@@ -536,13 +547,10 @@ class EditorWindow(QMainWindow):
             self.open_file(choice)
 
     def show_quick_start(self) -> None:
-        self._not_yet()
+        show_help(self, "quickstart")
 
     def show_about(self) -> None:
         AboutDialog(self).exec()
-
-    def _not_yet(self) -> None:
-        QMessageBox.information(self, "emu32", "This part comes in a later version.")
 
     # Autosave and closing
 
@@ -618,4 +626,5 @@ class EditorWindow(QMainWindow):
             self.emulator.close()
             self.emulator.shutdown()
         settings.put("editor_geometry", self.saveGeometry())
+        settings.put("editor_state", self.saveState())
         event.accept()

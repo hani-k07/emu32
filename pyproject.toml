@@ -33,7 +33,7 @@ Repository = "https://github.com/hani-k07/emu32"
 where = ["src"]
 
 [tool.setuptools.package-data]
-emu32 = ["examples/*.asm"]
+emu32 = ["examples/*.asm", "help/*.md"]
 
 [tool.ruff]
 line-length = 100

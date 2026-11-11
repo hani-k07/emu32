@@ -327,3 +327,32 @@ instruction address and IR the instruction bytes. Decode: PC moves to the next s
 instruction and IR adds the decoded text. Execute: PC is the real next EIP (after a jump),
 AC is EAX, and the ALU shows the operation, its inputs and result in hex. Memory access: AR
 is the data address and DR the data. Active parts get a thick outline and a `>` marker.
+
+## D41. Help pages live in the package (2026-11-11)
+
+Sections 8.6 and 13 put the tutorial and references in `docs/`. The app must show them after
+a `pip install` or from the executable, and files outside the package are not installed, so
+they live in `src/emu32/help/` (`quickstart.md`, `syntax.md`, `instructions.md`) as package
+data. The README links to them. `docs/` keeps the project documents: decisions, differences,
+architecture and classroom notes. A test assembles and runs the constructs the syntax page
+shows; it caught one wrong example (a WORD array read into EAX) before release.
+
+## D42. Examples (2026-11-11)
+
+Eight original examples, each in the style it suits: sum of array, factorial (recursive,
+reads input), bubble sort and find maximum (signed) use MASM style with library routines;
+string reverse (with the stack) and simple loop use `int 21h` in MASM style; string print and
+Fibonacci use Intel/NASM style. Golden tests check each one's full screen output and that
+none produces an assembler warning.
+
+## D43. Calculator and converter (2026-11-11)
+
+The logic is in `emu32/numbers.py` (no Qt). The calculator accepts `0FFh`, `0xFF`, `1010b`,
+`0b1010`, `377o`, `0o377` and decimals; operators `+ - * / mod and or xor not shl shr` and
+their symbols, and parentheses. Results are shown at 8, 16 or 32 bits, signed and unsigned.
+Division rounds toward minus infinity for negative operands; the help says so.
+
+## D44. Saved window layout (2026-11-11)
+
+Both windows save their size, position and panel layout on close and restore them at start
+(P2 item "persisted window layout").

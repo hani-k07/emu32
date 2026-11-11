@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QModelIndex, Qt, QTimer
+from PySide6.QtCore import QByteArray, QModelIndex, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -33,10 +33,11 @@ from PySide6.QtWidgets import (
 
 from emu32.assembler import AssemblyError
 from emu32.emulator import StopReason
-from emu32.gui import theme
+from emu32.gui import settings, theme
 from emu32.gui.cpu_view import CpuStructureWindow
 from emu32.gui.dialogs import AboutDialog, looks_like_intel, read_source
 from emu32.gui.errors import report_exception
+from emu32.gui.help_window import show_help
 from emu32.gui.models import DisassemblyModel, MemoryModel
 from emu32.gui.panels import (
     AuxPanel,
@@ -49,6 +50,7 @@ from emu32.gui.panels import (
     VarsPanel,
     fixed_font,
 )
+from emu32.gui.tools import show_tool
 from emu32.gui.worker import SessionRunner
 from emu32.session import Outcome, Session, SessionError
 
@@ -96,6 +98,12 @@ class EmulatorWindow(QMainWindow):
         self.refresh_timer.timeout.connect(self._live_refresh)
         self._set_busy(False)
         self.statusBar().showMessage("Load a program, or press Emulate in the editor")
+        geometry = settings.settings().value("emulator_geometry")
+        if isinstance(geometry, QByteArray):
+            self.restoreGeometry(geometry)
+        state = settings.settings().value("emulator_state")
+        if isinstance(state, QByteArray):
+            self.restoreState(state)
 
     # Building
 
@@ -187,8 +195,14 @@ class EmulatorWindow(QMainWindow):
             "zoom_in": self._action("Zoom &in", lambda: self.zoom(0.1), "Ctrl++"),
             "zoom_out": self._action("Zoom &out", lambda: self.zoom(-0.1), "Ctrl+-"),
             "about": self._action("&About emu32", lambda: AboutDialog(self).exec()),
-            "calculator": self._action("&Calculator", lambda: None, enabled=False),
-            "converter": self._action("C&onverter", lambda: None, enabled=False),
+            "calculator": self._action("&Calculator", lambda: show_tool(self, "calculator")),
+            "converter": self._action("C&onverter", lambda: show_tool(self, "converter")),
+            "ascii": self._action("&ASCII table", lambda: show_tool(self, "ascii")),
+            "quickstart": self._action("&Quick start", lambda: show_help(self, "quickstart"), "F1"),
+            "syntax": self._action("&Syntax reference", lambda: show_help(self, "syntax")),
+            "instructions": self._action(
+                "&Instruction reference", lambda: show_help(self, "instructions")
+            ),
         }
         self.act["zoom_in"].setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])
         upper = QAction("&Uppercase mnemonics", self)
@@ -207,7 +221,7 @@ class EmulatorWindow(QMainWindow):
         file_menu.addActions([a["load"], a["reload"], a["reset"]])
         file_menu.addSeparator()
         file_menu.addAction(a["close"])
-        bar.addMenu("Ma&th").addActions([a["calculator"], a["converter"]])
+        bar.addMenu("Ma&th").addActions([a["calculator"], a["converter"], a["ascii"]])
         bar.addMenu("&Debug").addActions(
             [a["step"], a["step_over"], a["step_back"], a["run"], a["stop"], a["breakpoint"],
              a["go_to"]]
@@ -216,7 +230,9 @@ class EmulatorWindow(QMainWindow):
         for title in ("E&xternal", "Virtual &devices", "Virtual d&rive"):
             reserved = bar.addMenu(title)
             reserved.setEnabled(False)
-        bar.addMenu("&Help").addAction(a["about"])
+        bar.addMenu("&Help").addActions(
+            [a["quickstart"], a["syntax"], a["instructions"], a["about"]]
+        )
 
     def _build_controls(self) -> None:
         top = QToolBar("Controls")
@@ -616,4 +632,6 @@ class EmulatorWindow(QMainWindow):
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
         self.runner.stop()
         self.cpu.close()
+        settings.put("emulator_geometry", self.saveGeometry())
+        settings.put("emulator_state", self.saveState())
         event.accept()
