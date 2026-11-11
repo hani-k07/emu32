@@ -475,8 +475,11 @@ class EmulatorWindow(QMainWindow):
     def _output(self, text: str) -> None:
         """Program output (int 21h or a library routine): show it, and bring the Screen
         window forward if it was closed, floating behind, or tabbed away."""
-        self.screen.append(text)
-        self.show_screen()
+        if text:
+            self.screen.append(text)
+            self.show_screen()
+        else:  # Clrscr
+            self.screen.set_text(self.session.console.output())
 
     def show_screen(self) -> None:
         dock = self.docks["Screen"]
