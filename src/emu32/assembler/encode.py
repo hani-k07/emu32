@@ -11,6 +11,7 @@ import keystone
 from emu32.assembler.cleaner import SourceLine, clean, map_unquoted
 from emu32.assembler.data_pass import DATA_SIZES, RESERVE_SIZES, UNSUPPORTED_DATA, DataBuilder
 from emu32.assembler.errors import AsmError, AsmMessage, AssemblyError
+from emu32.assembler.masm_pre import StructField, preprocess, split_args
 from emu32.assembler.operands import (
     KEYWORDS,
     NAME,
@@ -43,9 +44,9 @@ _HIGH_LEVEL = {
 _UNSUPPORTED_WORDS = {
     "macro": "macros are not supported",
     "endm": "macros are not supported",
-    "struct": "structures are not supported",
-    "struc": "structures are not supported",
-    "ends": "structures and segments are not supported",
+    "struct": "structures are supported in MASM style only",
+    "struc": "structures are supported in MASM style only",
+    "ends": "ENDS without a matching STRUCT; segments are not supported",
     "segment": "segments are not supported; use .data and .code",
     "assume": "ASSUME is not needed: emu32 uses flat 32-bit memory without segments",
 }
@@ -125,7 +126,9 @@ class _Item:
     invoke: bool = False
 
 
-_SIZE_OF_TYPE = {"byte": 1, "sbyte": 1, "word": 2, "sword": 2, "dword": 4, "sdword": 4}
+_SIZE_OF_TYPE = {
+    "byte": 1, "sbyte": 1, "word": 2, "sword": 2, "dword": 4, "sdword": 4, "qword": 8,
+}  # fmt: skip
 _PROC_ATTRIBUTES = {"near", "far", "public", "private", "stdcall", "c", "pascal"}
 _FRAME_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword)\s+ptr\s+(.*)$")
 
@@ -137,7 +140,16 @@ def _ebp_offset(offset: int) -> str:
 
 
 class _Assembler:
-    def __init__(self, mode: CpuMode, nasm: bool, externals: dict[str, int]) -> None:
+    def __init__(
+        self,
+        mode: CpuMode,
+        nasm: bool,
+        externals: dict[str, int],
+        structs: dict[str, list[StructField]] | None = None,
+    ) -> None:
+        self.structs = structs or {}
+        self.layouts: dict[str, tuple[int, dict[str, tuple[int, int, int, bytes]]]] = {}
+        self.struct_vars: dict[str, str] = {}  # variable -> STRUCT name
         self.mode = mode
         self.nasm = nasm
         self.scope = Scope(externals=dict(externals))
@@ -179,6 +191,8 @@ class _Assembler:
         self.names[name] = number
 
     def _line(self, number: int, text: str) -> None:
+        if self.structs:
+            text = self._struct_refs(text)
         words = text.split(" ")
         first = words[0]
         second = words[1] if len(words) > 1 else ""
@@ -198,8 +212,16 @@ class _Assembler:
             self._dot_directive(number, first, rest)
             return
         if first in ("include", "%include"):
-            if rest.strip("'\"<>") not in ("irvine32.inc",):
-                raise AsmError(f"INCLUDE {rest} is not supported; only Irvine32.inc is recognized")
+            if rest.strip("'\"<>") not in ("irvine32.inc", "macros.inc"):
+                raise AsmError(
+                    f"INCLUDE {rest} is not supported; Irvine32.inc and Macros.inc are built in"
+                )
+            return
+        if first in ("align", "even") and not self.nasm:
+            self._align(evaluate(rest, self.scope, 0) if rest else 2)
+            return
+        if second == "label" and len(words) > 2 and not self.nasm:
+            self._label_directive(number, first, words[2])
             return
         if first in ("includelib", "option", "title", "page", "subttl"):
             return
@@ -287,6 +309,13 @@ class _Assembler:
         self.scope.constants[name] = value
 
     def _data(self, number: int, words: list[str]) -> bool:
+        if len(words) > 1 and words[1] in self.structs:
+            if self.section != "data":
+                raise AsmError("data definitions belong in the .data section")
+            self._define(words[0], number)
+            self._struct_data(number, words[0], words[1], " ".join(words[2:]))
+            return True
+
         def is_data(word: str) -> bool:
             return word in DATA_SIZES or word in RESERVE_SIZES or word == "times"
 
@@ -309,6 +338,131 @@ class _Assembler:
             self._define(name, number)
         self.data.define(number, name, directive, operands)
         return True
+
+    # STRUCT, LABEL and ALIGN
+
+    def _layout(self, name: str) -> tuple[int, dict[str, tuple[int, int, int, bytes]]]:
+        """Size of a STRUCT and each field's (offset, element size, count, default bytes)."""
+        if name not in self.layouts:
+            scratch = Scope(constants=self.scope.constants, externals=self.scope.externals)
+            builder = DataBuilder(0, 1 << 20, scratch)
+            fields = {}
+            for item in self.structs[name]:
+                if item.directive not in DATA_SIZES:
+                    raise AsmError(
+                        f"field '{item.name}' of {name}: use BYTE, WORD, DWORD or QWORD fields"
+                    )
+                start = len(builder.data)
+                builder.define(0, item.name, item.directive, item.initializer)
+                symbol = scratch.symbols[item.name]
+                fields[item.name] = (start, symbol.size, symbol.count, bytes(builder.data[start:]))
+            self.layouts[name] = (len(builder.data), fields)
+        return self.layouts[name]
+
+    def _struct_instance(self, name: str, text: str) -> bytes:
+        text = text.strip()
+        if not (text.startswith(("<", "{")) and text.endswith((">", "}"))):
+            raise AsmError(f"a {name} value is written in angle brackets, for example <>")
+        inner = text[1:-1].strip()
+        values = split_args(inner) if inner else []
+        _, fields = self._layout(name)
+        if len(values) > len(fields):
+            raise AsmError(f"{name} has {len(fields)} fields, but {len(values)} values are given")
+        blob = bytearray()
+        for index, (field_name, (_, _, _, default)) in enumerate(fields.items()):
+            value = values[index] if index < len(values) else ""
+            if not value:
+                blob += default
+                continue
+            scratch = Scope(constants=self.scope.constants, externals=self.scope.externals)
+            builder = DataBuilder(0, 1 << 20, scratch)
+            field_def = next(f for f in self.structs[name] if f.name == field_name)
+            builder.define(0, None, field_def.directive, value)
+            if len(builder.data) > len(default):
+                raise AsmError(f"the value for {name}.{field_name} is too long for the field")
+            blob += builder.data + default[len(builder.data) :]
+        return bytes(blob)
+
+    def _struct_data(self, number: int, var: str, name: str, operands: str) -> None:
+        size, _ = self._layout(name)
+        blob, count = bytearray(), 0
+        for item in split_args(operands) or ["<>"]:
+            dup = re.fullmatch(r"(.+?)\s*dup\s*\((.*)\)", item)
+            if dup:
+                times = evaluate(dup.group(1), self.scope, self.data.here)
+                blob += self._struct_instance(name, dup.group(2) or "<>") * times
+                count += times
+            else:
+                blob += self._struct_instance(name, item)
+                count += 1
+        self.data.define_raw(number, var, bytes(blob), size, count, kind=name)
+        self.struct_vars[var] = name
+
+    def _field(self, name: str, field_name: str) -> tuple[int, int]:
+        _, fields = self._layout(name)
+        if field_name not in fields:
+            raise AsmError(f"{name} has no field '{field_name}'")
+        offset, size, _, _ = fields[field_name]
+        return offset, size
+
+    def _struct_refs(self, text: str) -> str:
+        """`var.field`, `(Type PTR [reg]).field`, `Type.field`, `SIZEOF Type`, `TYPE Type`."""
+
+        def sized(name: str, field_name: str, base: str) -> str:
+            offset, size = self._field(name, field_name)
+            return f"{SIZE_NAMES.get(size, 'byte')} ptr [{base}+{hex(offset)}]"
+
+        def pointer(match: re.Match) -> str:
+            name, inner, field_name = match.groups()
+            if name not in self.structs:
+                return match.group(0)
+            return sized(name, field_name, inner.strip().strip("[]"))
+
+        def dotted(match: re.Match) -> str:
+            prefix, name, field_name = match.groups()
+            if name in self.structs:
+                return (prefix or "") + hex(self._field(name, field_name)[0])
+            if name in self.struct_vars:
+                offset, _ = self._field(self.struct_vars[name], field_name)
+                if prefix:
+                    return f"{prefix}{name}+{hex(offset)}"
+                return sized(self.struct_vars[name], field_name, name)
+            return match.group(0)
+
+        def size_of(match: re.Match) -> str:
+            if match.group(2) in self.structs:
+                return hex(self._layout(match.group(2))[0])
+            return match.group(0)
+
+        def part(piece: str) -> str:
+            piece = re.sub(rf"\b(sizeof|type)\s+({NAME})", size_of, piece)
+            piece = re.sub(rf"\(({NAME})\s+ptr\s+([^()]*)\)\.({NAME})", pointer, piece)
+            return re.sub(rf"(offset\s+)?(?<![\w@?$.])({NAME})\.({NAME})", dotted, piece)
+
+        return map_unquoted(text, part)
+
+    def _label_directive(self, number: int, name: str, type_name: str) -> None:
+        """`name LABEL type`: another name and size for the data that follows."""
+        if self.section == "code":
+            self._code_label(number, name, scope_global=True)
+            return
+        if type_name in self.structs:
+            size, kind = self._layout(type_name)[0], type_name
+        elif type_name in _SIZE_OF_TYPE:
+            size, kind = _SIZE_OF_TYPE[type_name], ""
+        else:
+            raise AsmError(f"unknown type '{type_name}' for LABEL")
+        self._define(name, number)
+        signed = type_name in ("sbyte", "sword", "sdword")
+        self.scope.symbols[name] = Symbol(name, self.data.here, size, 1, signed, kind)
+
+    def _align(self, boundary: int) -> None:
+        if boundary <= 0 or boundary & (boundary - 1):
+            raise AsmError(f"ALIGN needs a power of two, not {boundary}")
+        if self.section == "data":
+            pad = -self.data.here % boundary
+            if pad:
+                self.data.define_raw(0, None, bytes(pad), 1, pad)
 
     def _proc(self, number: int, name: str, options: str) -> None:
         """`name PROC [attributes] [USES regs] [,] [param:type, ...]`"""
@@ -678,7 +832,10 @@ def assemble(
 ) -> Program:
     """Assemble source text. Raises AssemblyError listing every problem found."""
     lines, errors = clean(source)
-    assembler = _Assembler(mode, intel_syntax, externals or {})
+    structs: dict[str, list[StructField]] = {}
+    if not intel_syntax:
+        lines, structs = preprocess(lines, errors)
+    assembler = _Assembler(mode, intel_syntax, externals or {}, structs)
     assembler.errors.extend(errors)
     assembler.first_pass(lines)
     program = assembler.second_pass()
