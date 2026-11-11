@@ -29,6 +29,8 @@ def test_blocked_paths():
         "CLAUDE.md",
         ".claude/settings.json",
         "docs/reference/shot.png",
+        "docs/observations/screen.png",
+        "docs/observations/run1/regs.jpg",
         "EMU32-PROMPT.md",
         "PROMPT-v2.md",
         "a/b/notes.local.md",
