@@ -4,6 +4,17 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.9.1 (2026-11-12)
+
+- Long programs run much faster: after the first 200,000 instructions a run no longer
+  counts each instruction, so a 50-million-instruction program finishes in about 2 seconds.
+  The status bar then shows "at least N instructions".
+- The default run limit is now 100,000,000 instructions (was 1,000,000).
+- The emulator window refreshes about four times faster; table headers are no longer cut off.
+- The ASCII codes window shows all 256 codes on one screen.
+- The release has two downloads: `emu32-<version>-windows.zip` with only the installer and
+  README.txt, and `emu32-<version>-portable.zip` for running without installing.
+
 ## 0.9.0 (2026-11-12)
 
 First public release, for testing with course material before 1.0.
