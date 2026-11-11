@@ -45,3 +45,13 @@ there is one, the supported form.
 - Supported: `section .data`, `section .bss`, `section .text`, `global`, `extern`, `bits`,
   labels with a colon, `db`, `dw`, `dd`, `times`, `resb`, `resw`, `resd`, `equ`.
 - Not supported: NASM local labels starting with a dot, macros (`%macro`, `%define`).
+
+## Console services
+
+- `int 21h` supports functions 01h, 02h, 09h and 4Ch as in DOS, plus 40h, which in emu32
+  prints EDX as a signed decimal (in DOS, 40h writes to a file). Other functions stop the
+  program with a message.
+- The library routines are emu32's own implementations of the commonly used console
+  routines. Details such as how `ReadInt` reports invalid input may differ from other
+  libraries: emu32 sets OF=1 and returns 0.
+- Carriage returns are not shown; a line feed starts a new line.

@@ -137,3 +137,48 @@ Keystone runs with its NASM syntax option. The front-end still splits sections a
 data, because data must go to the data region, which is writable, and code to the read-only
 code region. A variable name stands for its address, with no size inference. See
 `docs/differences.md` for the supported directives.
+
+## D18. Library routine stubs (2026-11-11)
+
+Each routine's stub is one `ret` byte in the library-stub region. A code hook limited to that
+region runs the Python routine, then the real `ret` returns to the caller. Section 7.4
+describes popping the return address and setting EIP from the hook; Unicorn 2.1.4 does not
+handle an EIP write inside a code hook reliably (a test run crashed with an invalid read), and
+letting the CPU execute `ret` has the same effect. When a routine ends the program, fails or
+is waiting for input that gets cancelled, the `ret` does not run, so a later Run calls the
+routine again. The stub `ret` counts as one executed instruction.
+
+A routine name written alone as a statement (`exit`) is assembled as a call to it, so the
+common `exit` line works.
+
+## D19. `int 21h` function 40h prints EDX, not EAX (2026-11-11)
+
+Section 7.3 says 40h prints EAX. AH selects the function, and AH is bits 8 to 15 of EAX, so
+`mov ah, 40h` always overwrites part of the number: -15 printed as -48911. The service reads
+EDX instead, which matches 02h (DL) and 09h (EDX). This changes the spec; revert if EAX is
+required for compatibility with course material.
+
+## D20. Console behavior (2026-11-11)
+
+- Bytes are shown with code page 437, so box-drawing characters from DOS-style programs
+  display as expected.
+- Carriage returns are dropped; a line feed starts a new line. `13, 10` prints one line break.
+- Line input (`ReadInt`, `ReadString`) echoes the typed line followed by a line break, so the
+  screen reads like a terminal session. `ReadChar` does not echo; `int 21h` 01h does.
+- Input blocks the emulator thread. Cancelling a read (Stop) ends the run as a normal Stop
+  and the read happens again on the next Run.
+
+## D21. Library routine behavior (2026-11-11)
+
+Written from the commonly documented behavior, not from any library source:
+`WriteInt` prints a leading sign (`+5`, `-5`); `WriteHex` prints eight digits; `ReadInt` sets
+OF=1 and EAX=0 when the line is not a 32-bit integer; `ReadString` takes the buffer size in
+ECX, stores at most ECX-1 characters and a 0, and returns the count in EAX; `ReadChar`
+returns 0Dh for Enter; `ExitProcess` takes its exit code from the stack argument.
+
+## D22. Service set and the CPU mode (2026-11-11)
+
+Section 5.3 lists the service set in the `CpuMode` interface. The runtime reads 32-bit
+registers by name (EDX, EAX), which a 16-bit mode would replace with segment:offset
+addressing, so it would need its own runtime module anyway. The stub addresses come from the
+mode's memory map. The service set is not modelled in `CpuMode` until a second mode exists.
