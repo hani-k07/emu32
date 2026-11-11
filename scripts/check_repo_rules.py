@@ -23,7 +23,12 @@ FORBIDDEN_TEXT = re.compile(
     r"|\bcopilot\b|(?-i:\bAI\b)",
     re.IGNORECASE,
 )
-EMOJI = re.compile("[\U0001f000-\U0001faff\u2600-\u27bf\u2b00-\u2bff\ufe0f\u200d]")
+# Emoji blocks, plus single arrows and shapes that also have an emoji form.
+EMOJI = re.compile(
+    "[\U0001f000-\U0001faff\u2600-\u27bf\u2b00-\u2bff\ufe0f\u200d"
+    "\u2194-\u2199\u21a9\u21aa\u231a\u231b\u23e9-\u23f3\u23f8-\u23fa"
+    "\u25aa\u25ab\u25b6\u25c0\u25fb-\u25fe\u2934\u2935]"
+)
 SECRET_TEXT = re.compile(
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----|\bgh[pousr]_[A-Za-z0-9]{30,}|\bAKIA[0-9A-Z]{16}\b"
 )

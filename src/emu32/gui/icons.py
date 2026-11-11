@@ -9,14 +9,14 @@ from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap
 
 _TILES = {
     "new": ("+", "#2e7d32"),
-    "open": ("↗", "#1565c0"),  # north-east arrow
+    "open": ("⇧", "#1565c0"),  # upward arrow
     "examples": ("≡", "#6a1b9a"),  # three bars
     "save": ("↓", "#00695c"),  # down arrow
-    "compile": ("⚙", "#ef6c00"),  # gear
-    "emulate": ("▶", "#c62828"),  # play triangle
+    "compile": ("⌘", "#ef6c00"),  # command symbol
+    "emulate": ("►", "#c62828"),  # right pointer
     "calculator": ("=", "#455a64"),
     "converter": ("⇄", "#455a64"),  # two arrows
-    "options": ("☰", "#5d4037"),  # trigram
+    "options": ("⋮", "#5d4037"),  # vertical dots
     "help": ("?", "#1565c0"),
     "about": ("i", "#1565c0"),
 }

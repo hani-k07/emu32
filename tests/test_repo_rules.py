@@ -21,6 +21,9 @@ def test_ordinary_text_passes():
 
 def test_emoji_and_secrets_are_rejected():
     assert rules.text_problems("done \U0001f680")
+    assert rules.text_problems("play ▶ and ↗")
+    assert rules.text_problems("tool ⚙")
+    assert not rules.text_problems("arrows ↓ ⇄ ► ⌘ are text symbols")
     assert rules.text_problems("-----BEGIN RSA PRIVATE KEY-----")
 
 
