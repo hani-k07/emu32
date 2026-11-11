@@ -1,0 +1,76 @@
+# Assistant and local-only files. Never tracked, never pushed.
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.windsurf/
+.continue/
+.aider*
+.github/copilot-instructions.md
+EMU32-PROMPT.md
+PROMPT*.md
+*.local.md
+docs/reference/
+plans/
+notes/
+scratch/
+TODO.local*
+
+# Python and tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Qt and generated files
+moc_*
+ui_*.py
+*.qm
+*_rc.py
+
+# Editors and operating systems
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Secrets and local config
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+secrets/
+emu32-settings.ini
+emu32.ini
+
+# Build outputs and temporary files
+*.exe
+*.msi
+*.dmg
+*.AppImage
+*.log
+*.tmp
+tmp/
+.cache/
+out/
+examples/**/*.bin
+examples/**/*.lst
