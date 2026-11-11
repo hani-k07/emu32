@@ -130,3 +130,30 @@ def test_load_rejects_oversized_code():
 def test_run_without_program_is_an_error():
     with pytest.raises(EmulatorError):
         Emulator().run()
+
+
+def test_long_runs_switch_to_full_speed_and_say_the_count_is_approximate(run_asm):
+    # 3,000,001 instructions: past the exact-counting part, then fast chunks.
+    emu, result = run_asm("mov ecx, 1500000\ntop: nop\nloop top\nmov eax, 7\nret")
+    assert result.reason is StopReason.EXITED
+    assert emu.register("EAX") == 7
+    assert result.approximate and emu.steps_approximate
+    assert 3_000_000 - Emulator.fast_chunk_size <= result.steps <= 3_000_003
+
+
+def test_step_limit_count_stays_exact_in_fast_runs(run_asm):
+    _, result = run_asm("top: inc eax\njmp top", max_steps=2_000_000)
+    assert (result.reason, result.steps, result.approximate) == (StopReason.LIMIT, 2_000_000, False)
+
+
+def test_hlt_ends_a_fast_run_too(run_asm):
+    emu, result = run_asm("mov ecx, 400000\ntop: loop top\nmov eax, 5\nhlt\nmov eax, 6")
+    assert result.reason is StopReason.EXITED
+    assert emu.register("EAX") == 5
+
+
+def test_single_steps_still_count_exactly_after_a_fast_run(run_asm):
+    emu, _ = run_asm("mov ecx, 400000\ntop: loop top\nnop\nnop\nret", max_steps=300_000)
+    before = emu.total_steps
+    assert emu.step().steps == 1
+    assert emu.total_steps == before + 1
