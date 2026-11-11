@@ -35,6 +35,16 @@ class EmulatorError(Exception):
     pass
 
 
+class HookStop(Exception):  # noqa: N818 - a control signal, not an error
+    """Raised inside a hook to end the run as a normal Stop, for example when input is
+    cancelled. The instruction being hooked does not run, so a later run retries it.
+    `resume_at` moves EIP back, for hooks that fire after the instruction (interrupts)."""
+
+    def __init__(self, resume_at: int | None = None) -> None:
+        super().__init__()
+        self.resume_at = resume_at
+
+
 _INVALID_ACCESS = {
     unicorn.UC_MEM_READ_UNMAPPED: "reads memory at {addr}, which is outside the program's memory",
     unicorn.UC_MEM_WRITE_UNMAPPED: "writes memory at {addr}, which is outside the program's memory",
@@ -58,9 +68,13 @@ class Emulator:
         self.max_steps = max_steps
         # Handlers for `int n`. Interrupt numbers without a handler stop the program.
         self.interrupt_handlers: dict[int, Callable[[Emulator], None]] = {}
+        # Called at the end of every load, with memory mapped, to add stubs and hooks.
+        self.setup_hooks: list[Callable[[Emulator], None]] = []
         self.uc: unicorn.Uc | None = None
         self.total_steps = 0
         self.exited = False
+        self.exit_code = 0
+        self._exit_requested = False
         self._ip = mode.instruction_pointer
         self._exit = mode.region("exit_stub").start
         self._reg_ids = {
@@ -106,6 +120,9 @@ class Emulator:
         self.set_register(self._ip, code_region.start if entry is None else entry)
         self.total_steps = 0
         self.exited = False
+        self.exit_code = 0
+        for setup in self.setup_hooks:
+            setup(self)
 
     # Execution
 
@@ -125,6 +142,17 @@ class Emulator:
         if self.uc is not None:
             self.uc.emu_stop()
 
+    def exit_program(self, code: int = 0) -> None:
+        """End the program from inside a hook (exit services)."""
+        self.exit_code = code
+        self._exit_requested = True
+        self.uc.emu_stop()
+
+    def fail(self, message: str, address: int) -> None:
+        """Stop the program with an error from inside a hook."""
+        self._fault = (message, address)
+        self.uc.emu_stop()
+
     def _advance(self, limit: int) -> RunResult:
         if self.uc is None:
             raise EmulatorError("no program is loaded")
@@ -141,7 +169,11 @@ class Emulator:
             if self._fault is not None:
                 message, address = self._fault
                 return RunResult(StopReason.ERROR, done, message, address)
-            if pc == self._exit or (executed < count and self._halted_before(pc)):
+            if (
+                self._exit_requested
+                or pc == self._exit
+                or (executed < count and self._halted_before(pc))
+            ):
                 self.exited = True
                 return RunResult(StopReason.EXITED, done)
             if self._stop_requested:
@@ -152,19 +184,27 @@ class Emulator:
         self._counted = 0
         self._last_block = []
         self._fault = None
+        self._exit_requested = False
+        resume_at = None
         try:
             self.uc.emu_start(self.register(self._ip), self._exit, count=count)
         except unicorn.UcError as error:
             if self._fault is None:
                 message = _UC_ERRORS.get(error.errno, str(error))
                 self._fault = (message, self.register(self._ip))
+        except HookStop as stop:
+            self._stop_requested = True
+            resume_at = stop.resume_at
         pc = self.register(self._ip)
         executed = self._counted
         # Blocks are counted when entered; drop the instructions of the last block that did
         # not complete (a fault, a stop request, or the count limit inside the block).
         if self._last_block and self._last_block[0] <= pc:
             executed -= sum(1 for start in self._last_block if start >= pc)
-        return min(executed, count)
+        if resume_at is not None:
+            self.set_register(self._ip, resume_at)
+            executed -= 1  # the interrupted instruction will run again
+        return max(0, min(executed, count))
 
     def _halted_before(self, pc: int) -> bool:
         return pc - 1 in self._last_block and self.read_memory(pc - 1, 1)[0] == HLT
