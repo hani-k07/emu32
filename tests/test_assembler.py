@@ -295,3 +295,30 @@ again:
     assert emu.register("EAX") == 12
     assert emu.register("BL") == ord("*")
     assert dword(emu, program.symbols["result"].address) == 12
+
+
+MASM_MSG = ".data\nmsg db 'hi$'\n.code\n"
+NASM_MSG = "section .data\nmsg db 'hi$'\nsection .text\n"
+
+
+@pytest.mark.parametrize(
+    ("line", "intel"),
+    [
+        ("lea dx, msg", False),
+        ("mov dx, OFFSET msg", False),
+        ("mov si, offset msg", False),
+        ("lea dl, msg", False),
+        ("mov dx, msg", True),
+    ],
+)
+def test_16_bit_registers_cannot_hold_an_address(line, intel):
+    source = (NASM_MSG if intel else MASM_MSG) + line
+    [(number, message)] = errors_of(source, intel_syntax=intel)
+    assert number == 4
+    assert "cannot hold the 32-bit address of 'msg'" in message
+    assert "use a 32-bit register" in message
+
+
+def test_16_bit_reads_of_variables_are_still_fine():
+    _, emu, _ = run(".data\nw dw 1234h\n.code\nmov dx, w\nret")
+    assert emu.register("DX") == 0x1234
