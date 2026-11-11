@@ -105,6 +105,10 @@ QHeaderView::section {{
 QTableCornerButton::section {{ background: {bg_raised}; border: none; }}
 
 QDockWidget {{ titlebar-close-icon: none; }}
+QLabel#panel_title {{
+    background: {bg_raised}; padding: {s1}px {s2}px; border-bottom: 1px solid {border};
+    font-weight: bold;
+}}
 QDockWidget::title {{
     background: {bg_raised}; padding: {s1}px {s2}px; border-bottom: 1px solid {border};
 }}

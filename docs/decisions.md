@@ -609,3 +609,11 @@ set; that is not needed for the toolbar now and can still be added later for oth
 The window also opens with a blank document, so the line-number gutter is ready for typing;
 it gives way to the first file opened or created. Tab close buttons use the same icon style
 instead of the platform default.
+
+## D69. Emulator window controls and panel headings (2026-11-12)
+
+The emulator window's text buttons (Load, Reload, Step back, Single step, Run, Stop) are now
+icon-over-label tool buttons in the same drawn icon style as the editor (D68), grouped by
+separators: file, stepping, run and stop. The Registers, Memory and Disassembly headings use
+the same raised title strip as the dock windows, so all panels look alike. The icons are
+redrawn on theme changes and in projector mode.

@@ -554,6 +554,7 @@ class EditorWindow(QMainWindow):
                 item.setIcon(icon(item.property("icon_name")))
         if self.emulator is not None:
             self.emulator.source.refresh_theme()
+            self.emulator.refresh_icons()
             self.emulator.refresh()
 
     def show_welcome(self) -> None:
