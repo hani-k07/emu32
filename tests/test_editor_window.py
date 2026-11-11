@@ -2,6 +2,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import QFileDialog, QMessageBox
 
 from emu32.gui import errors, settings, theme
@@ -205,12 +206,27 @@ def test_zoom_changes_and_remembers_font_size(window):
     assert settings.get_int("font_size", 0) == size + 2
 
 
-def test_dark_theme(window):
+def test_theme_switch_at_run_time(window):
+    from PySide6.QtWidgets import QApplication
+
     doc = window.add_document(GOOD)
-    theme.apply("dark")
-    doc.refresh_theme()
-    assert theme.colors() is theme.DARK
-    theme.apply("light")
+    for name in ("light", "dark"):
+        window.switch_theme(name)
+        assert theme.current_name() == name
+        assert theme.token("bg.base") in QApplication.instance().styleSheet()
+        background = QApplication.instance().palette().color(QPalette.Base).name().upper()
+        assert background == theme.token("bg.base").upper()
+        assert doc.highlighter.formats["comment"].foreground().color() == theme.color("syn.comment")
+    assert window.act["compile"].icon().pixmap(16, 16).toImage() is not None
+
+
+def test_dark_is_the_default_when_the_system_setting_is_unknown(monkeypatch):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    hints = QApplication.instance().styleHints()
+    monkeypatch.setattr(type(hints), "colorScheme", lambda self: Qt.ColorScheme.Unknown)
+    assert theme.system_theme() == "dark"
 
 
 def test_unexpected_errors_go_to_the_log(monkeypatch):
