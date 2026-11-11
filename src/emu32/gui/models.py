@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
-from PySide6.QtGui import QColor, QFont
+from PySide6.QtGui import QFont
 
 from emu32.gui import theme
 
@@ -80,7 +80,7 @@ class MemoryModel(QAbstractTableModel):
                 return "--"
             return (f"{value:02X}", str(value), char_name(value))[column - 2]
         if role == Qt.BackgroundRole and row in self.changed:
-            return QColor(theme.colors().changed)
+            return theme.color("changed")
         if role == Qt.TextAlignmentRole and column in (2, 3):
             return Qt.AlignRight | Qt.AlignVCenter
         return None
@@ -135,9 +135,9 @@ class DisassemblyModel(QAbstractTableModel):
                 return text.upper() if self.uppercase else text
             return "" if line is None else str(line)
         if role == Qt.BackgroundRole and current:
-            return QColor(theme.colors().current_line)
+            return theme.color("current-line")
         if role == Qt.ForegroundRole and index.column() == 0 and address in self.breakpoints:
-            return QColor(theme.colors().breakpoint)
+            return theme.color("error")
         if role == Qt.FontRole and current:
             font = QFont()
             font.setBold(True)

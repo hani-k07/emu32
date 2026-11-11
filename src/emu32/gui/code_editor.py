@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from PySide6.QtCore import QRect, QSize, Qt, Signal
 from PySide6.QtGui import (
-    QColor,
     QFontDatabase,
     QPainter,
     QTextBlockUserData,
@@ -92,9 +91,8 @@ class CodeEditor(QPlainTextEdit):
         self._gutter.setGeometry(QRect(area.left(), area.top(), self.gutter_width(), area.height()))
 
     def paint_gutter(self, event) -> None:
-        c = theme.colors()
         painter = QPainter(self._gutter)
-        painter.fillRect(event.rect(), QColor(c.gutter))
+        painter.fillRect(event.rect(), theme.color("bg.panel"))
         painter.setRenderHint(QPainter.Antialiasing)
         height = self.fontMetrics().height()
         block = self.firstVisibleBlock()
@@ -106,25 +104,25 @@ class CodeEditor(QPlainTextEdit):
                 marks = block.userData()
                 size = height - 6
                 if isinstance(marks, _Marks) and marks.breakpoint:
-                    painter.setBrush(QColor(c.breakpoint))
+                    painter.setBrush(theme.color("error"))
                     painter.setPen(Qt.NoPen)
                     painter.drawEllipse(3, top + 3, size, size)
                 if isinstance(marks, _Marks) and marks.bookmark:
-                    painter.setBrush(QColor(c.bookmark))
+                    painter.setBrush(theme.color("accent"))
                     painter.setPen(Qt.NoPen)
                     painter.drawRect(height + 3, top + 3, size // 2, size)
                 if line in self.error_lines:
-                    painter.setBrush(QColor(c.error))
+                    painter.setBrush(theme.color("warn"))
                     painter.setPen(Qt.NoPen)
                     painter.drawRect(height + size // 2 + 5, top + 2, size // 2, height - 4)
-                painter.setPen(QColor(c.gutter_text))
+                painter.setPen(theme.color("text.muted"))
                 painter.drawText(0, top, self._gutter.width() - 4, height, Qt.AlignRight, str(line))
             block = block.next()
             top = bottom
 
     def _highlight_current_line(self) -> None:
         selection = QTextEdit.ExtraSelection()
-        selection.format.setBackground(QColor(theme.colors().current_line))
+        selection.format.setBackground(theme.color("current-line"))
         selection.format.setProperty(QTextFormat.FullWidthSelection, True)
         selection.cursor = self.textCursor()
         selection.cursor.clearSelection()

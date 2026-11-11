@@ -633,7 +633,7 @@ class EmulatorWindow(QMainWindow):
             self._theme_before = theme.current_name()
             theme.apply("contrast")
         else:
-            theme.apply(getattr(self, "_theme_before", "light"))
+            theme.apply(getattr(self, "_theme_before", "dark"))
         self.source.refresh_theme()
         self._apply_scale()
         self.refresh()

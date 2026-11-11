@@ -114,6 +114,7 @@ class EditorWindow(QMainWindow):
         action = QAction(text, self)
         if icon_name:
             action.setIcon(icon(icon_name))
+            action.setProperty("icon_name", icon_name)  # redrawn when the theme changes
         if shortcut:
             action.setShortcut(QKeySequence(shortcut))
         action.triggered.connect(lambda _=False: slot())
@@ -520,10 +521,20 @@ class EditorWindow(QMainWindow):
         settings.put("show_welcome", dialog.show_welcome.isChecked())
         settings.put("max_steps", dialog.max_steps.value())
         self.session.max_steps = dialog.max_steps.value()
+        self.switch_theme(name)
+        self.zoom(dialog.font_size.value() - self.font_size)
+
+    def switch_theme(self, name: str) -> None:
+        """Change the theme while the window is open; colors drawn in code follow too."""
         theme.apply(name)
         for doc in self.documents():
             doc.refresh_theme()
-        self.zoom(dialog.font_size.value() - self.font_size)
+        for action in self.act.values():
+            if action.property("icon_name"):
+                action.setIcon(icon(action.property("icon_name")))
+        if self.emulator is not None:
+            self.emulator.source.refresh_theme()
+            self.emulator.refresh()
 
     def show_welcome(self) -> None:
         dialog = WelcomeDialog(
