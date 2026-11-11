@@ -4,6 +4,10 @@ A desktop tool for learning 32-bit x86 (IA-32) assembly. Write a program in the 
 compile it, then run it one instruction at a time and watch the registers, flags, memory,
 stack, variables and screen output change.
 
+**[Download emu32 for Windows](https://github.com/hani-k07/emu32/releases/latest)**: open the
+latest release and download the file named `emu32-<version>-windows.zip`. The green **Code >
+Download ZIP** button gives the source code, not the program.
+
 ![The emulator window paused inside a recursive procedure](docs/images/emulator.png)
 
 - Editor with syntax coloring, error list with line numbers, breakpoints and autosave
@@ -29,6 +33,12 @@ This also works from a USB stick.
 
 The program is not signed, so Windows may show "Windows protected your PC". Click
 **More info**, then **Run anyway**. The SHA-256 checksum of the zip is in the release notes.
+
+The Windows build works fully offline: emu32 makes no network connections, sends no usage
+data and does not check for updates. Besides emu32's own open-source code it contains the
+Python runtime, Qt and the engines (all open source), and Microsoft's Visual C++ runtime
+DLLs, which Python and Qt need on Windows; those are redistributable but not open source.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ### With pip (Windows, Linux, macOS)
 

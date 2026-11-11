@@ -315,7 +315,7 @@ class EmulatorWindow(QMainWindow):
     def _connect(self) -> None:
         self.runner.finished.connect(self._finished)
         self.runner.stepped.connect(lambda _outcome: setattr(self, "dirty", True))
-        self.runner.output.connect(self.screen.append)
+        self.runner.output.connect(self._output)
         self.runner.waiting.connect(self._waiting)
         self.screen.submitted.connect(lambda text: self.session.console.feed(text + "\n"))
         self.registers.edit_requested.connect(self.edit_register)
@@ -469,9 +469,20 @@ class EmulatorWindow(QMainWindow):
     def _waiting(self, waiting: bool) -> None:
         self.screen.set_waiting(waiting)
         if waiting:
-            self.docks["Screen"].show()
-            self.docks["Screen"].raise_()
+            self.show_screen()
             self.statusBar().showMessage("Waiting for input in the Screen window")
+
+    def _output(self, text: str) -> None:
+        """Program output (int 21h or a library routine): show it, and bring the Screen
+        window forward if it was closed, floating behind, or tabbed away."""
+        self.screen.append(text)
+        self.show_screen()
+
+    def show_screen(self) -> None:
+        dock = self.docks["Screen"]
+        if dock.isHidden():
+            dock.show()
+        dock.raise_()
 
     # Refreshing
 

@@ -300,8 +300,32 @@ class _Assembler:
             r"(?<![\w@?$])\$\s*[+-]", operands
         ):
             raise AsmError("jumps to $+n or $-n are not supported; put a label at the target")
-        parts = [rewrite_operand(op, self.scope, self.nasm) for op in split_operands(operands)]
+        operand_list = split_operands(operands)
+        self._check_address_fits(mnemonic, operand_list)
+        parts = [rewrite_operand(op, self.scope, self.nasm) for op in operand_list]
         return f"{mnemonic} {', '.join(parts)}"
+
+    def _check_address_fits(self, mnemonic: str, operands: list[str]) -> None:
+        """`lea dx, msg` and `mov dx, OFFSET msg` are the 16-bit habit; here addresses are
+        32 bits, so DX would get a cut-off address and int 21h would print nothing."""
+        if mnemonic not in ("mov", "lea") or len(operands) != 2:
+            return
+        dest, source = operands
+        bits = REGISTER_BITS.get(dest)
+        if bits is None or bits == self.mode.bits:
+            return
+        names = [n for n in names_in(source) if n in self.scope.symbols]
+        if not names:
+            return
+        if mnemonic == "mov" and "offset" not in names_in(source):
+            # MASM: `mov dx, msg` reads memory. NASM: it is the address unless in brackets.
+            if not self.nasm or "[" in source:
+                return
+        wide = f"e{dest}" if f"e{dest}" in REGISTER_BITS else "edx"
+        raise AsmError(
+            f"{dest} is a {bits}-bit register and cannot hold the 32-bit address of "
+            f"'{names[0]}'; use a 32-bit register: {mnemonic} {wide}, {source}"
+        )
 
     def second_pass(self) -> Program | None:
         asm: list[str] = []

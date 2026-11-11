@@ -293,3 +293,16 @@ def test_emulate_from_the_editor(qtbot, monkeypatch):
     finally:
         emulator.close()
         emulator.shutdown()
+
+
+def test_screen_comes_forward_when_the_program_prints(window, qtbot):
+    window.load_source(".code\nmain:\nmov dl, 'A'\nmov ah, 2\nint 21h\nmov ah, 4Ch\nint 21h")
+    window.docks["Screen"].hide()
+    for _ in range(2):
+        window.command("step")
+        finish(qtbot, window)
+    assert window.docks["Screen"].isHidden()  # nothing printed yet
+    window.command("step")  # int 21h prints 'A'
+    finish(qtbot, window)
+    qtbot.waitUntil(lambda: not window.docks["Screen"].isHidden(), timeout=2000)
+    assert window.screen.output.toPlainText() == "A"

@@ -409,3 +409,47 @@ windowed program has no console.
 
 Jump and call targets inside the program show their label (`jbe base_case`,
 `call factorial`), and library calls their routine name, instead of raw addresses.
+
+## D51. Microsoft's C++ runtime in the Windows build (2026-11-12)
+
+The Windows zip contains `vcruntime140*.dll` and `msvcp140*.dll`. Python and Qt for Windows
+are built with Microsoft's compiler and need them; clean Windows installs do not reliably
+have them, and installing Microsoft's redistributable would need administrator rights. They
+are redistributable but not open source. Options considered: bundle them (chosen), require
+them on the PC (breaks on clean lab PCs), rebuild everything with an open MinGW toolchain
+(large and fragile), or ship no Windows binary (fails section 11). GPL-2.0's system-library
+exception does not clearly cover a runtime that accompanies the executable; nearly every
+GPL program shipping Python or Qt on Windows bundles it the same way. Decided with the
+repository owner on 2026-11-12. The README and `THIRD_PARTY_NOTICES.md` state it. A fully
+open toolchain build can follow later as a separate project.
+
+## D52. Offline guarantee (2026-11-12)
+
+A test fails if any emu32 module imports networking code (socket, ssl, urllib, http,
+QtNetwork and similar); the only exception is the self-test's own guard. `--self-test`
+replaces Python's socket functions with ones that refuse and record every attempt, and
+fails if any was made, so each release build proves it ran without touching the network.
+Links in the About and Welcome windows open the user's browser only when clicked.
+
+## D53. 16-bit address registers (2026-11-12)
+
+`lea dx, msg` and `mov dx, OFFSET msg` load only the low 16 bits of a 32-bit address, so a
+following `int 21h` function 09h printed nothing and stopped with an error at address 0.
+The assembler now rejects an address loaded into an 8- or 16-bit register and shows the
+32-bit form (`lea edx, msg`). A run-time error for an address below 10000h adds the same
+hint. Reading a WORD variable into DX (`mov dx, w`) is unaffected.
+
+## D54. Screen window on output (2026-11-12)
+
+When a program prints (an `int 21h` output function or a library routine), the Screen
+window is shown and brought forward, also if it was closed or tabbed away. Input already
+did this.
+
+## D55. Release download test on several machines (2026-11-12)
+
+After the build job, a second job runs on Windows Server 2022, Windows Server 2025 and
+Windows 11 on ARM (x64 emulation). It takes the zip as a student would (for a tag, from the
+public release link, checking the SHA-256 against the release notes), marks it as
+downloaded from the internet, unpacks it into a folder with spaces and accented letters,
+checks the contents, runs the portable copy, and installs into a folder with a non-ASCII
+name, runs and uninstalls.

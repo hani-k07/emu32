@@ -24,6 +24,7 @@ there is one, the supported form.
 | Construct | Message points to |
 |---|---|
 | `@data`, segment register setup | remove the two lines |
+| `lea dx, msg`, `mov dx, OFFSET msg` (an address in a 16-bit register) | use the 32-bit register: `lea edx, msg` |
 | `SEGMENT`, `ENDS`, `ASSUME` | use `.data` and `.code` |
 | `INVOKE` | push the arguments and use `CALL` |
 | `.IF`, `.ELSE`, `.WHILE`, `.REPEAT` and the other high-level directives | use `CMP` and conditional jumps |

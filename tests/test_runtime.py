@@ -230,3 +230,10 @@ def test_int21_errors_point_at_the_int(body, text):
     assert text in result.message
     int_line = 7 if "OFFSET" not in body else 8
     assert result.address == program.line_to_address[int_line]
+
+
+def test_cut_off_address_gets_a_hint():
+    emu, _, _ = start(library("xor edx, edx\nmov dx, 18h\nmov ah, 9\nint 21h"))
+    result = emu.run()
+    assert result.reason is StopReason.ERROR
+    assert "mov edx, OFFSET message" in result.message
