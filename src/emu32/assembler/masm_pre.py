@@ -15,8 +15,8 @@ import re
 from dataclasses import dataclass, field
 
 from emu32.assembler.cleaner import SourceLine, clean, map_unquoted
-from emu32.assembler.errors import AsmMessage
-from emu32.assembler.operands import NAME
+from emu32.assembler.errors import AsmError, AsmMessage
+from emu32.assembler.operands import NAME, Scope, evaluate
 
 MAX_DEPTH = 32  # nested macro calls; deeper is almost certainly endless recursion
 
@@ -100,7 +100,22 @@ _REGISTER_PTR = re.compile(
 
 
 class PreError(Exception):
-    pass
+    def __init__(self, text: str, line: int | None = None) -> None:
+        super().__init__(text)
+        self.line = line  # when the error belongs to another line than the current one
+
+
+class _ExitMacro(Exception):
+    """EXITM: stop expanding the current macro."""
+
+
+_REPEATS = {"rept", "repeat", "for", "irp", "forc", "irpc", "while"}
+_CONDITIONALS = {
+    "if", "ife", "ifb", "ifnb", "ifidn", "ifidni", "ifdif", "ifdifi", "ifdef", "ifndef",
+}  # fmt: skip
+_CONDITION_WORDS = _CONDITIONALS | {"else" + w for w in _CONDITIONALS} | {"else", "endif"}
+_CONSTANT_LINE = re.compile(rf"^({NAME})\s*(?:=|equ\b)\s*([^<].*)$")
+MAX_REPEATS = 10_000
 
 
 @dataclass
@@ -194,6 +209,10 @@ class _Pre:
         self.counter = 0
         self.blocks: list[dict] = []
         self.defining: tuple[str, Macro] | None = None
+        self.nesting = 0  # REPT/FOR/WHILE blocks open inside a macro or block being read
+        self.capture: dict | None = None  # a REPT/FOR/FORC/WHILE block being read
+        self.conditions: list[dict] = []  # open IF blocks
+        self.consts: dict[str, int] = {}  # numeric constants seen so far, for IF and REPT
         self.struct: tuple[str, int, list[StructField]] | None = None
         for line in clean(BUILT_IN_MACROS)[0]:
             self._line(0, line.text, 0)
@@ -210,12 +229,18 @@ class _Pre:
             try:
                 self._line(line.number, line.text, 0)
             except PreError as error:
-                self.errors.append(AsmMessage(line.number, str(error)))
+                self.errors.append(AsmMessage(error.line or line.number, str(error)))
         if self.defining:
             name, macro = self.defining
             self.errors.append(AsmMessage(macro.line, f"macro '{name}' has no ENDM"))
         if self.struct:
             self.errors.append(AsmMessage(self.struct[1], f"STRUCT '{self.struct[0]}' has no ENDS"))
+        if self.capture:
+            self.errors.append(
+                AsmMessage(self.capture["line"], f"{self.capture['kind'].upper()} has no ENDM")
+            )
+        for condition in self.conditions:
+            self.errors.append(AsmMessage(condition["line"], "IF has no ENDIF"))
         for block in self.blocks:
             closing = {"if": ".ENDIF", "while": ".ENDW", "repeat": ".UNTIL"}[block["kind"]]
             self.errors.append(AsmMessage(block["line"], f"this block has no {closing}"))
@@ -227,7 +252,7 @@ class _Pre:
         words = text.split(" ")
         if self.defining is not None:
             name, macro = self.defining
-            if words[0] == "endm":
+            if self._block_ends(words):
                 self.macros[name] = macro
                 self.defining = None
             elif len(words) > 1 and words[1] == "macro":
@@ -235,13 +260,41 @@ class _Pre:
             else:
                 macro.body.append(text)
             return
+        if self.capture is not None:
+            if self._block_ends(words):
+                block, self.capture = self.capture, None
+                try:
+                    self._repeat(block)
+                except PreError as error:
+                    error.line = error.line or block["line"]  # point at REPT/FOR/WHILE
+                    raise
+            else:
+                self.capture["body"].append(text)
+            return
         if self.struct is not None:
             self._struct_line(text, words)
+            return
+        if words[0] in _CONDITION_WORDS:
+            self._conditional(number, words[0], text[len(words[0]) :].strip())
+            return
+        if not all(c["active"] for c in self.conditions):
             return
         text = self._substitute_texts(text)
         words = text.split(" ")
         second = words[1] if len(words) > 1 else ""
         rest = text[len(words[0]) :].strip()
+        if words[0] == "exitm":
+            raise _ExitMacro
+        if words[0] in _REPEATS:
+            self.capture = {"kind": words[0], "args": rest, "body": [], "line": number,
+                            "depth": depth}  # fmt: skip
+            return
+        constant = _CONSTANT_LINE.match(text)
+        if constant:
+            try:
+                self.consts[constant.group(1)] = self._value(constant.group(2))
+            except PreError:
+                pass  # uses a variable address; the assembler works it out
         if second == "macro":
             self._define_macro(number, words[0], text.split(" ", 2)[2] if len(words) > 2 else "")
             return
@@ -303,8 +356,92 @@ class _Pre:
         while body and body[0].startswith("local "):
             for local in split_args(body.pop(0)[6:]):
                 values[local] = self.label(f"m_{local}_")
-        for line in body:
-            self._line(number, _fill(line, values), depth + 1)
+        open_conditions = len(self.conditions)
+        try:
+            for line in body:
+                self._line(number, _fill(line, values), depth + 1)
+        except _ExitMacro:
+            del self.conditions[open_conditions:]
+
+    # Conditional assembly and repeat blocks
+
+    def _block_ends(self, words: list[str]) -> bool:
+        """Track REPT/FOR/WHILE nesting inside a block being read; True at its own ENDM."""
+        if words[0] in _REPEATS:
+            self.nesting += 1
+        elif words[0] == "endm":
+            if self.nesting == 0:
+                return True
+            self.nesting -= 1
+        return False
+
+    def _value(self, expression: str) -> int:
+        try:
+            return evaluate(expression, Scope(constants=self.consts), 0)
+        except AsmError as error:
+            raise PreError(f"this needs a constant expression: {error.text}") from None
+
+    def _conditional(self, number: int, word: str, rest: str) -> None:
+        outer = all(c["active"] for c in self.conditions)
+        if word in _CONDITIONALS:
+            value = outer and self._test(word, rest)
+            self.conditions.append({"active": value, "taken": value, "outer": outer,
+                                    "line": number})  # fmt: skip
+            return
+        if not self.conditions:
+            raise PreError(f"{word.upper()} without a matching IF")
+        top = self.conditions[-1]
+        if word == "endif":
+            self.conditions.pop()
+        elif word == "else":
+            top["active"] = top["outer"] and not top["taken"]
+            top["taken"] = True
+        else:  # ELSEIF, ELSEIFB, ...
+            value = top["outer"] and not top["taken"] and self._test(word[4:], rest)
+            top["active"] = value
+            top["taken"] = top["taken"] or value
+
+    def _test(self, word: str, rest: str) -> bool:
+        if word in ("if", "ife"):
+            return (self._value(rest) != 0) == (word == "if")
+        if word in ("ifb", "ifnb"):
+            return (_unbracket(rest) == "") == (word == "ifb")
+        if word in ("ifdef", "ifndef"):
+            known = rest in self.consts or rest in self.texts or rest in self.macros
+            return (known or rest in self.structs) == (word == "ifdef")
+        parts = split_args(rest)
+        if len(parts) != 2:
+            raise PreError(f"{word.upper()} compares two texts: {word.upper()} <a>, <b>")
+        same = _unbracket(parts[0]) == _unbracket(parts[1])
+        return same == word.startswith("ifidn")
+
+    def _repeat(self, block: dict) -> None:
+        kind, args, body = block["kind"], block["args"], block["body"]
+        number, depth = block["line"], block["depth"]
+
+        def replay(values: dict[str, str]) -> None:
+            for line in body:
+                self._line(number, _fill(line, values) if values else line, depth + 1)
+
+        if kind in ("rept", "repeat"):
+            for _ in range(self._value(args)):
+                replay({})
+        elif kind in ("for", "irp", "forc", "irpc"):
+            name, _, items = (part.strip() for part in args.partition(","))
+            if not name or not items:
+                raise PreError(f"write {kind.upper()} name, <items>")
+            if kind in ("for", "irp"):
+                values = [_unbracket(item) for item in split_args(_unbracket(items))]
+            else:
+                values = list(_unbracket(items))
+            for value in values:
+                replay({name: value})
+        else:  # WHILE expression ... ENDM
+            for _ in range(MAX_REPEATS):
+                if not self._value(args):
+                    return
+                replay({})
+            raise PreError(f"WHILE repeated {MAX_REPEATS} times; is its condition ever false?")
 
     # Structures
 

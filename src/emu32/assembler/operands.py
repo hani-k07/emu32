@@ -49,8 +49,15 @@ _BINARY_OPS = {
     ast.RShift: operator.rshift,
 }
 # MASM's word operators in constant expressions, as Python operators.
-_WORD_OPERATORS = {"and": "&", "or": "|", "xor": "^", "not": "~", "shl": "<<", "shr": ">>"}
-_WORD_OPERATOR_RE = re.compile(r"(?<![\w@?$])(and|or|xor|not|shl|shr)(?![\w@?$])")
+_WORD_OPERATORS = {
+    "and": "&", "or": "|", "xor": "^", "not": "~", "shl": "<<", "shr": ">>",
+    "eq": "==", "ne": "!=", "lt": "<", "le": "<=", "gt": ">", "ge": ">=",
+}  # fmt: skip
+_WORD_OPERATOR_RE = re.compile(r"(?<![\w@?$])(and|or|xor|not|shl|shr|eq|ne|lt|le|gt|ge)(?![\w@?$])")
+_COMPARE_OPS = {
+    ast.Eq: operator.eq, ast.NotEq: operator.ne, ast.Lt: operator.lt,
+    ast.LtE: operator.le, ast.Gt: operator.gt, ast.GtE: operator.ge,
+}  # fmt: skip
 
 
 @dataclass(frozen=True)
@@ -178,6 +185,10 @@ def _eval(node: ast.AST) -> int:
         if isinstance(node.op, ast.Invert):
             return ~value
         return -value if isinstance(node.op, ast.USub) else value
+    if isinstance(node, ast.Compare) and len(node.ops) == 1 and type(node.ops[0]) in _COMPARE_OPS:
+        # MASM's EQ, NE, LT, ... give -1 (all bits set) for true and 0 for false.
+        holds = _COMPARE_OPS[type(node.ops[0])](_eval(node.left), _eval(node.comparators[0]))
+        return -1 if holds else 0
     if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPS:
         return _BINARY_OPS[type(node.op)](_eval(node.left), _eval(node.right))
     raise AsmError("invalid expression")

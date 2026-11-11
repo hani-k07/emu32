@@ -285,11 +285,36 @@ REAL8 through a pointer. The FPU starts as in a Windows program: every register
 empty, 53-bit precision. The **FPU** panel shows the register stack and the
 status word while you step; step back restores it too.
 
+## Conditional assembly and repeat blocks
+
+These run while the program is assembled, not while it runs:
+
+```
+DEBUG = 1
+IF DEBUG                  ; also IFE, IFB <arg>, IFNB <arg>, IFIDN <a>, <b>,
+    call DumpRegs         ; IFIDNI, IFDIF, IFDEF name, IFNDEF, ELSEIF, ELSE
+ENDIF
+
+REPT 3                    ; the lines, 3 times
+    inc eax
+ENDM
+FOR reg, <eax, ebx, ecx>  ; once per item; FORC goes through characters
+    push reg
+ENDM
+n = 1
+WHILE n LE 5              ; as long as the constant expression is true
+    DWORD n * n
+    n = n + 1
+ENDM
+```
+
+`EQ NE LT LE GT GE` compare constants. `EXITM` leaves a macro early. Text in angle
+brackets is read without case, like names.
+
 ## Not supported
 
-Programs split over several files (`EXTERN`),
-conditional assembly (`IF`, `REPT`, `FOR`), and jumps to `$+n`. The assembler names
-the construct and suggests what to write instead.
+Programs split over several files (`EXTERN`) and jumps to `$+n`. The assembler
+names the construct and suggests what to write instead.
 
 ## Intel/NASM style
 

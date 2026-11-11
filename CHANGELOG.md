@@ -14,6 +14,8 @@ whole semester.
   variable name.
 - Floating point: REAL4/REAL8/REAL10 data, the x87 FPU, WriteFloat, ReadFloat,
   ShowFPUStack, an FPU panel, and step back over FPU instructions.
+- Conditional assembly and repeat blocks: IF/IFB/IFIDN/IFDEF/ELSEIF/ELSE, REPT, FOR,
+  FORC, WHILE, EXITM; EQ/NE/LT/LE/GT/GE in constant expressions.
 - New toolbar icons: original line drawings, larger, in theme colors.
 - The editor opens with a blank document ready for typing.
 - Emulator window: icon controls and matching panel headings.

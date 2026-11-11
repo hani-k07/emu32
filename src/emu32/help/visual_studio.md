@@ -17,7 +17,8 @@ Open the `.asm` file, press **F5** (Compile), then **Ctrl+F5** (Emulate).
   `ENTER`/`LEAVE`, labels local to a procedure, `name::` global labels, `@@:`.
 - `.IF`, `.ELSEIF`, `.ELSE`, `.ENDIF`, `.WHILE`, `.ENDW`, `.REPEAT`, `.UNTIL`,
   `.BREAK`, `.CONTINUE`.
-- `MACRO`/`ENDM` with `LOCAL`, `:REQ` and default values; `mWrite`, `mWriteLn`,
+- `MACRO`/`ENDM` with `LOCAL`, `:REQ`, default values and `EXITM`; `IF`/`IFB`/`IFIDN`
+  and the other conditional directives; `REPT`, `FOR`, `FORC`, `WHILE`; `mWrite`, `mWriteLn`,
   `mWriteString`, `mWriteSpace`, `mReadString`, `mGotoxy`, `mDumpMem`.
 - `STRUCT`/`ENDS`, arrays of structures, `(Type PTR [esi]).Field`.
 - `REAL4`, `REAL8`, `REAL10` and the x87 FPU instructions; WriteFloat, ReadFloat,
@@ -50,8 +51,8 @@ Open the `.asm` file, press **F5** (Compile), then **Ctrl+F5** (Emulate).
   process, values do not.
 - One source file per program: `EXTERN` and several `.asm` files in one project
   are not supported.
-- No Windows API beyond `ExitProcess`, no `MsgBox`, and no conditional assembly
-  (`IF`, `REPT`, `FOR`).
+- No Windows API beyond `ExitProcess` and no `MsgBox`.
+- Text in angle brackets is read without case (`FORC c, <ABC>` gives `a b c`).
 - 16-bit DOS programs (`.model small`, `mov ax, @data`) are rejected with a hint:
   emu32 runs 32-bit code.
 

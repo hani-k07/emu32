@@ -703,3 +703,20 @@ in emu32's own layers:
 - An FPU dock shows ST(0) to ST(7) and the status word (TOP, C3, C2, C0). It refreshes only
   while visible, so it costs nothing otherwise. The Vars panel shows REAL variables as
   numbers.
+
+## D75. Conditional assembly and repeat blocks (2026-11-12)
+
+The macro chapter of MASM courses uses IF/IFB/IFIDN, REPT, FOR, FORC, WHILE and EXITM.
+They are evaluated in the preprocessing stage (D71). To do that it now follows numeric
+constants as it reads (`name = expr`, `name EQU expr`), so `WHILE n LE 5` with
+`n = n + 1` in its body works; the lines are still passed on, so the assembler sees the same
+constants. Constant expressions gained EQ, NE, LT, LE, GT and GE, which give -1 for true and
+0 for false as in MASM. An IF that names a variable is an error ("needs a constant
+expression"), since addresses are known only in the assembler. WHILE stops after 10,000
+repetitions with a message. REPT/FOR/WHILE blocks nest inside macros and each other, and
+errors inside them point at the line that opened the block.
+
+Known difference: the cleaner reads everything outside quotes without case, so text in
+angle brackets loses its case (`FORC c, <ABC>` gives a, b, c). Keeping case there would
+break matching of registers and names passed as macro arguments; quoted strings keep case.
+`EXITM <value>` (macro functions) and the `%` operator are not supported.
