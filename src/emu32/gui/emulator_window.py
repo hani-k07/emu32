@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QDockWidget,
     QFileDialog,
     QHBoxLayout,
-    QHeaderView,
     QInputDialog,
     QLabel,
     QLineEdit,
@@ -48,6 +47,8 @@ from emu32.gui.panels import (
     SourcePanel,
     StackPanel,
     VarsPanel,
+    count_text,
+    fit_columns,
     fixed_font,
 )
 from emu32.gui.tools import show_tool
@@ -117,11 +118,9 @@ class EmulatorWindow(QMainWindow):
         self.memory_view.verticalHeader().setVisible(False)
         self.memory_view.verticalHeader().setDefaultSectionSize(self.fontMetrics().height() + 4)
         self.memory_view.setSelectionBehavior(QTableView.SelectRows)
-        # Fixed widths: sizing to contents would measure all 65,536 rows.
-        char = self.memory_view.fontMetrics().horizontalAdvance("W")
-        for column, chars in enumerate((2, 10, 4, 5, 7)):
-            self.memory_view.setColumnWidth(column, char * chars + 12)
-        self.memory_view.horizontalHeader().setStretchLastSection(True)
+        self.memory_view.setAlternatingRowColors(True)
+        # Widths from the font: sizing to contents would read all 65,536 rows.
+        self.memory_view.setMinimumWidth(fit_columns(self.memory_view, [1, 8, 2, 3, 5]))
         self.address_box = QLineEdit(fmt(self.mode.region("data").start))
         self.address_box.setToolTip("Address in hex. Press Enter to show it.")
         self.disassembly_model = DisassemblyModel(fmt)
@@ -133,9 +132,10 @@ class EmulatorWindow(QMainWindow):
             self.fontMetrics().height() + 4
         )
         self.disassembly_view.setSelectionBehavior(QTableView.SelectRows)
-        header = self.disassembly_view.horizontalHeader()
-        header.setSectionResizeMode(QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.Stretch)
+        self.disassembly_view.setAlternatingRowColors(True)
+        # Widths from the font: sizing to contents read every row on each refresh, which
+        # made a refresh take about 140 ms (D66).
+        fit_columns(self.disassembly_view, [2, 4, 8, 26, 10])
         self.disassembly_view.setToolTip("Double-click an instruction to toggle a breakpoint.")
         self.screen = ScreenPanel()
         self.source = SourcePanel()
@@ -520,7 +520,9 @@ class EmulatorWindow(QMainWindow):
         self.vars.refresh(session.variables(), self.mode.format_address)
         session.watches = self.debug.watches
         self.debug.refresh(session.breakpoint_lines, session.watch_values())
-        self.aux.refresh(emu.total_steps, session.trace, self.mode.format_address)
+        self.aux.refresh(
+            emu.total_steps, session.trace, self.mode.format_address, emu.steps_approximate
+        )
         self.screen.set_text(session.console.output())
         start = (
             self.memory_model.start
@@ -541,7 +543,8 @@ class EmulatorWindow(QMainWindow):
             text = outcome.message if outcome and outcome.message else f"at {where}"
             if emu.exited and not (outcome and outcome.message):
                 text = "the program has ended"
-            self.statusBar().showMessage(f"{text}    instructions: {emu.total_steps:,}")
+            count = count_text(emu.total_steps, emu.steps_approximate)
+            self.statusBar().showMessage(f"{text}    instructions: {count}")
 
     # Memory, registers, breakpoints
 
