@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (
 
 from emu32.assembler import AssemblyError
 from emu32.emulator import StopReason
+from emu32.emulator.core import FPU_STATUS
 from emu32.gui import settings, theme
 from emu32.gui.cpu_view import CpuStructureWindow
 from emu32.gui.dialogs import AboutDialog, looks_like_intel, read_source
@@ -44,6 +45,7 @@ from emu32.gui.panels import (
     AuxPanel,
     DebugPanel,
     FlagsPanel,
+    FpuPanel,
     RegistersPanel,
     ScreenPanel,
     SourcePanel,
@@ -146,6 +148,7 @@ class EmulatorWindow(QMainWindow):
         self.debug = DebugPanel()
         self.stack = StackPanel(self.mode)
         self.flags = FlagsPanel()
+        self.fpu = FpuPanel()
         self.cpu = CpuStructureWindow(self)
         self.cpu.setWindowFlag(Qt.Window)
 
@@ -285,7 +288,9 @@ class EmulatorWindow(QMainWindow):
         layout.addWidget(self.splitter, 1)
         row = QHBoxLayout()
         self.bottom_buttons: dict[str, QPushButton] = {}
-        for name in ("Screen", "Source", "Reset", "Aux", "Vars", "Debug", "Stack", "Flags", "CPU"):
+        for name in (
+            "Screen", "Source", "Reset", "Aux", "Vars", "Debug", "Stack", "Flags", "FPU", "CPU",
+        ):  # fmt: skip
             button = QPushButton(name)
             row.addWidget(button)
             self.bottom_buttons[name] = button
@@ -302,6 +307,7 @@ class EmulatorWindow(QMainWindow):
             "Debug": (self.debug, Qt.RightDockWidgetArea, False),
             "Stack": (self.stack, Qt.RightDockWidgetArea, False),
             "Flags": (self.flags, Qt.RightDockWidgetArea, False),
+            "FPU": (self.fpu, Qt.RightDockWidgetArea, False),
         }
         for name, (widget, area, visible) in placement.items():
             dock = QDockWidget(name, self)
@@ -314,9 +320,11 @@ class EmulatorWindow(QMainWindow):
             action.setText(f"&{name}")
             self.view_menu.addAction(action)
             self.bottom_buttons[name].clicked.connect(lambda _=False, d=dock: self._toggle_dock(d))
-        for name in ("Aux", "Vars", "Debug", "Stack", "Flags"):
+        for name in ("Aux", "Vars", "Debug", "Stack", "Flags", "FPU"):
             self.tabifyDockWidget(self.docks["Source"], self.docks[name])
         self.docks["Source"].raise_()
+        # The FPU panel refreshes only while shown; catch up when it appears.
+        self.docks["FPU"].visibilityChanged.connect(lambda shown: shown and self.refresh())
         # Keep the main three columns large on a 1366x768 screen.
         self.resizeDocks([self.docks["Screen"]], [150], Qt.Vertical)
         self.resizeDocks([self.docks["Source"]], [360], Qt.Horizontal)
@@ -370,6 +378,7 @@ class EmulatorWindow(QMainWindow):
         self.source.set_source(source, self.session.breakpoint_lines)
         self.screen.set_text("")
         self.vars.reset()
+        self.fpu.reset()
         self._after_load()
         return True
 
@@ -416,6 +425,7 @@ class EmulatorWindow(QMainWindow):
         self.source.set_source(source, self.session.breakpoint_lines)
         self.screen.set_text("")
         self.vars.reset()
+        self.fpu.reset()
         self._after_load()
 
     def reset(self) -> None:
@@ -424,6 +434,7 @@ class EmulatorWindow(QMainWindow):
         self.session.reset()
         self.screen.set_text("")
         self.vars.reset()
+        self.fpu.reset()
         self._after_load()
         self.statusBar().showMessage("Reset to the start of the program")
 
@@ -532,6 +543,9 @@ class EmulatorWindow(QMainWindow):
         eip = registers[self.mode.instruction_pointer]
         self.registers.refresh(registers, self.before_registers)
         self.flags.refresh(flags, self.before_flags)
+        if self.docks["FPU"].isVisible():
+            emu = session.emulator
+            self.fpu.refresh(emu.fpu_stack(), emu.uc.reg_read(FPU_STATUS))
         self.stack.refresh(registers, session.read_bytes)
         self.vars.refresh(session.variables(), self.mode.format_address)
         session.watches = self.debug.watches

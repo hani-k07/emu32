@@ -20,6 +20,9 @@ Open the `.asm` file, press **F5** (Compile), then **Ctrl+F5** (Emulate).
 - `MACRO`/`ENDM` with `LOCAL`, `:REQ` and default values; `mWrite`, `mWriteLn`,
   `mWriteString`, `mWriteSpace`, `mReadString`, `mGotoxy`, `mDumpMem`.
 - `STRUCT`/`ENDS`, arrays of structures, `(Type PTR [esi]).Field`.
+- `REAL4`, `REAL8`, `REAL10` and the x87 FPU instructions; WriteFloat, ReadFloat,
+  ShowFPUStack. The FPU panel plays the part of Visual Studio's floating-point
+  registers.
 - Library procedures: WriteString, WriteChar, WriteDec, WriteInt, WriteHex,
   WriteBin, Crlf, ReadInt, ReadDec, ReadHex, ReadChar, ReadString, ReadKey,
   DumpRegs, DumpMem, Str_length, Str_copy, Str_compare, Str_ucase, Str_trim,
@@ -47,8 +50,8 @@ Open the `.asm` file, press **F5** (Compile), then **Ctrl+F5** (Emulate).
   process, values do not.
 - One source file per program: `EXTERN` and several `.asm` files in one project
   are not supported.
-- No Windows API beyond `ExitProcess`, no `MsgBox`, no floating-point data
-  (`REAL4`) and no conditional assembly (`IF`, `REPT`, `FOR`).
+- No Windows API beyond `ExitProcess`, no `MsgBox`, and no conditional assembly
+  (`IF`, `REPT`, `FOR`).
 - 16-bit DOS programs (`.model small`, `mov ax, @data`) are rejected with a hint:
   emu32 runs 32-bit code.
 

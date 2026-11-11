@@ -674,3 +674,32 @@ floating point or conditional assembly). The Memory panel's address box now also
 variable name, with or without `&`, as Visual Studio's Memory window does. Three examples
 show the new MASM features: grade_report (.IF/.ELSEIF/.WHILE), employee_records (an array
 of STRUCT records) and add_64bit (QWORD addition with ADD and ADC).
+
+## D74. Floating point: REAL data, the x87 FPU and the float library routines (2026-11-12)
+
+Course chapters on floating point use REAL4/REAL8 data, x87 instructions and the library's
+WriteFloat and ReadFloat. Unicorn emulates the x87 and Keystone encodes it, so the work was
+in emu32's own layers:
+
+- The cleaner keeps float literals (`1.5`, `3.`, `2.0e+3`) instead of converting their
+  digits to hex. REAL4 and REAL8 pack as IEEE single and double; REAL10 packs as x87
+  extended precision. A float literal in a DWORD is an error that names REAL4 and REAL8.
+  DT/TBYTE stay 10-byte integers.
+- `REAL4/REAL8/REAL10 PTR` become the operand sizes Keystone knows (dword, qword, tbyte).
+- `FINIT`, `FSTSW`, `FSTCW`, `FCLEX`, `FSAVE` and `FSTENV` are a WAIT plus the no-wait
+  form in machine code; they are assembled as those two instructions so the line map keeps
+  one entry per instruction.
+- At load the FPU is set as a Windows process starts it: control word 027Fh (53-bit
+  precision, exceptions masked) and every register empty. Unicorn's reset state (control
+  word 0, which is 24-bit precision) would give different results from Visual Studio.
+- Step back saves and restores the eight data registers and the status, control and tag
+  words; recovering from a CPU fault keeps them as well.
+- WriteFloat prints ST(0) as `+1.2345000E+001` (eight significant digits, three exponent
+  digits) and leaves it on the stack. This is emu32's own format; it is documented as such,
+  not as a copy of another library's output. ReadFloat's stub is `fld qword ptr [scratch]`
+  followed by `ret`: the Python routine writes the number into the stub's own slot, then the
+  CPU loads it, so the FPU stack and tag word stay consistent. ShowFPUStack prints ST(0) to
+  ST(7). WriteFloat on an empty stack stops with a message instead of printing garbage.
+- An FPU dock shows ST(0) to ST(7) and the status word (TOP, C3, C2, C0). It refreshes only
+  while visible, so it costs nothing otherwise. The Vars panel shows REAL variables as
+  numbers.

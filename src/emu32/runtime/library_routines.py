@@ -17,6 +17,10 @@ Register use:
     ReadString   EDX = buffer, ECX = buffer size; stores at most ECX-1 characters and a 0;
                  EAX = number of characters stored
     DumpRegs     prints the registers and flags as the caller sees them
+    WriteFloat   ST(0) in scientific notation, +1.2345000E+001; ST(0) stays on the stack
+    ReadFloat    reads a line and pushes the number onto the FPU stack; a line that is
+                 not a number pushes 0.0 and sets OF=1
+    ShowFPUStack prints ST(0) to ST(7), empty registers left out
     exit         ends the program (exit code 0)
     ExitProcess  ends the program; exit code is the dword argument on the stack
 
@@ -29,6 +33,7 @@ from __future__ import annotations
 
 import datetime
 import random
+import struct
 import time
 from collections.abc import Callable
 
@@ -336,6 +341,42 @@ def _parse_integer32(emu: Emulator, con: Console) -> None:
     _set_flags(emu, OF=not valid)
 
 
+def format_float(value: float) -> str:
+    """Scientific notation with eight significant digits and a three-digit exponent."""
+    if value != value:
+        return "NAN"
+    if value in (float("inf"), float("-inf")):
+        return "+INF" if value > 0 else "-INF"
+    mantissa, exponent = f"{value:+.7E}".split("E")
+    return f"{mantissa}E{exponent[0]}{int(exponent[1:]):03d}"
+
+
+def _write_float(emu: Emulator, con: Console) -> None:
+    top = emu.fpu_stack()[0]
+    if top is None:
+        raise ServiceError("WriteFloat: the FPU stack is empty; load a value with FLD first")
+    con.write(format_float(top))
+
+
+def _read_float(emu: Emulator, con: Console) -> None:
+    line = con.read_line()
+    con.write(line + "\n")
+    try:
+        value, valid = float(line.strip()), True
+    except ValueError:
+        value, valid = 0.0, False
+    # The stub's own FLD loads this value right after the routine returns to it.
+    scratch = routine_addresses(emu.mode)["readfloat"] + READ_FLOAT_SCRATCH
+    emu.write_memory(scratch, struct.pack("<d", value))
+    _set_overflow(emu, not valid)
+
+
+def _show_fpu_stack(emu: Emulator, con: Console) -> None:
+    stack = emu.fpu_stack()
+    lines = [f"ST({i}): {format_float(v)}" for i, v in enumerate(stack) if v is not None]
+    con.write("\n".join(lines or ["The FPU stack is empty"]) + "\n")
+
+
 # Order fixes each stub's address; append new routines at the end.
 ROUTINES: dict[str, Routine] = {
     "writestring": _write_string,
@@ -374,7 +415,11 @@ ROUTINES: dict[str, Routine] = {
     "readkey": _read_key,
     "parsedecimal32": _parse_decimal32,
     "parseinteger32": _parse_integer32,
+    "writefloat": _write_float,
+    "readfloat": _read_float,
+    "showfpustack": _show_fpu_stack,
 }
+READ_FLOAT_SCRATCH = 8  # offset of ReadFloat's 8-byte value inside its stub slot
 
 # Routines that take dword arguments on the stack and remove them on return (stdcall).
 STACK_ARGUMENTS = {
@@ -401,6 +446,7 @@ DISPLAY_NAMES = {
     "settextcolor": "SetTextColor", "gotoxy": "Gotoxy", "waitmsg": "WaitMsg",
     "isdigit": "IsDigit", "getmseconds": "GetMseconds", "readkey": "ReadKey",
     "parsedecimal32": "ParseDecimal32", "parseinteger32": "ParseInteger32",
+    "writefloat": "WriteFloat", "readfloat": "ReadFloat", "showfpustack": "ShowFPUStack",
 }  # fmt: skip
 
 
@@ -418,6 +464,10 @@ def install(emu: Emulator, console: Console) -> None:
         count = STACK_ARGUMENTS.get(name, 0)
         # `ret n` (C2 iw) removes stack arguments, as the callee does under stdcall.
         stub = b"\xc2" + (4 * count).to_bytes(2, "little") if count else RET
+        if name == "readfloat":
+            # fld qword ptr [scratch] ; ret -- the routine fills the scratch first.
+            scratch = address + READ_FLOAT_SCRATCH
+            stub = b"\xdd\x05" + scratch.to_bytes(4, "little") + RET
         emu.write_memory(address, stub)
 
     def on_stub(uc: unicorn.Uc, address: int, size: int, _data: object) -> None:

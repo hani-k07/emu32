@@ -26,6 +26,30 @@ if sys.version_info < (3, 12):
     _NONE_RESERVE = [None] * 200_000
 
 
+WINDOWS_FPU_CONTROL = 0x027F
+FPU_STATUS = x86_const.UC_X86_REG_FPSW
+_FPU_REGISTERS = (
+    *(x86_const.UC_X86_REG_FP0 + i for i in range(8)),
+    x86_const.UC_X86_REG_FPSW,
+    x86_const.UC_X86_REG_FPCW,
+    x86_const.UC_X86_REG_FPTAG,
+)
+
+
+def extended_to_float(mantissa: int, exponent: int) -> float:
+    """An 80-bit x87 value (64-bit mantissa, sign and 15-bit exponent) as a Python float."""
+    sign = -1.0 if exponent & 0x8000 else 1.0
+    exponent &= 0x7FFF
+    if exponent == 0x7FFF:
+        return sign * float("inf") if mantissa << 1 == 0 else float("nan")
+    if exponent == 0 and mantissa == 0:
+        return sign * 0.0
+    try:
+        return sign * mantissa * 2.0 ** (exponent - 16383 - 63)
+    except OverflowError:
+        return sign * float("inf")
+
+
 class StopReason(enum.Enum):
     LIMIT = "limit"  # the requested number of steps ran; a single step ends this way
     EXITED = "exited"
@@ -168,6 +192,9 @@ class Emulator:
         uc.mem_write(sp, self._exit.to_bytes(mode.word_size, "little"))
         self.set_register(mode.stack_pointer, sp)
         self.set_register(mode.flags_register, mode.initial_flags)
+        # A Windows process starts with the FPU at 53-bit precision, all exceptions masked.
+        self.uc.reg_write(x86_const.UC_X86_REG_FPCW, WINDOWS_FPU_CONTROL)
+        self.uc.reg_write(x86_const.UC_X86_REG_FPTAG, 0xFFFF)  # every register empty
         self.set_register(self._ip, code_region.start if entry is None else entry)
         self.total_steps = 0
         self.steps_approximate = False
@@ -386,12 +413,14 @@ class Emulator:
         same. Faults are rare, so copying the memory (about 1.2 MB) costs nothing noticeable.
         """
         registers = self.registers()
+        fpu = self.fpu_state()
         memory = [(r.start, bytes(self.uc.mem_read(r.start, r.size))) for r in self.mode.regions]
         self._new_engine()
         for start, blob in memory:
             self.uc.mem_write(start, blob)
         for name, value in registers.items():
             self.set_register(name, value)
+        self.set_fpu_state(fpu)
         self._cpu_fault = False
 
     # Hooks
@@ -457,6 +486,29 @@ class Emulator:
 
     def registers(self) -> dict[str, int]:
         return {name: self.register(name) for name in self.mode.registers}
+
+    def fpu_state(self) -> tuple:
+        """The eight x87 data registers and the status, control and tag words."""
+        return tuple(self.uc.reg_read(r) for r in _FPU_REGISTERS)
+
+    def set_fpu_state(self, state: tuple) -> None:
+        for register, value in zip(_FPU_REGISTERS, state, strict=True):
+            self.uc.reg_write(register, value)
+
+    def fpu_stack(self) -> list[float | None]:
+        """ST(0) to ST(7) as numbers; None for an empty register."""
+        status = self.uc.reg_read(x86_const.UC_X86_REG_FPSW)
+        tags = self.uc.reg_read(x86_const.UC_X86_REG_FPTAG)
+        top = (status >> 11) & 7
+        out: list[float | None] = []
+        for i in range(8):
+            physical = (top + i) & 7
+            if (tags >> (2 * physical)) & 3 == 3:  # tag 11: empty
+                out.append(None)
+                continue
+            mantissa, exponent = self.uc.reg_read(x86_const.UC_X86_REG_FP0 + physical)
+            out.append(extended_to_float(mantissa, exponent))
+        return out
 
     def flags(self) -> dict[str, int]:
         return flags.decode(self.register(self.mode.flags_register))

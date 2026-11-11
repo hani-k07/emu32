@@ -324,3 +324,18 @@ def test_memory_address_box_accepts_a_variable_name(window):
     address = window.session.program.symbols["total"].address
     row = window.memory_view.selectionModel().selectedRows()[0].row()
     assert window.memory_model.start + row == address
+
+
+def test_fpu_panel_shows_the_register_stack(window, qtbot):
+    source = "INCLUDE Irvine32.inc\n.code\nmain PROC\nfld1\nfldpi\nexit\nmain ENDP\nEND main\n"
+    assert window.load_source(source, title="fpu.asm")
+    window.docks["FPU"].show()
+    window.command("step")
+    finish(qtbot, window)
+    window.command("step")
+    finish(qtbot, window)
+    window.refresh()
+    assert cell(window.fpu.table, 0, 2).startswith("3.14159")
+    assert cell(window.fpu.table, 1, 2) == "1"
+    assert cell(window.fpu.table, 2, 2) == "empty"
+    assert "TOP=6" in window.fpu.status.text()

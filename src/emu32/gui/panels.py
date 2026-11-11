@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import struct
+
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
@@ -20,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from emu32.cpu_mode import CpuMode
+from emu32.emulator.core import extended_to_float
 from emu32.gui import theme
 from emu32.gui.code_editor import CodeEditor
 from emu32.gui.models import CHANGED_MARK
@@ -38,6 +41,21 @@ FLAG_MEANINGS = {
 
 def fixed_font():
     return QFontDatabase.systemFont(QFontDatabase.FixedFont)
+
+
+def value_texts(symbol, value: int) -> tuple[str, str]:
+    """Decimal and hex text of a variable's first element. REAL variables show their
+    number; a structure shows its first bytes."""
+    raw = (value & ((1 << 8 * symbol.size) - 1)).to_bytes(symbol.size, "little")
+    if symbol.kind in ("real4", "real8", "real10"):
+        if symbol.size == 10:
+            number = extended_to_float(int.from_bytes(raw[:8], "little"), raw[8] | raw[9] << 8)
+        else:
+            number = struct.unpack("<f" if symbol.size == 4 else "<d", raw)[0]
+        return f"{number:.10g}", raw[::-1].hex().upper()
+    if symbol.size > 8:
+        return "", raw[:8].hex(" ").upper() + " ..."
+    return str(value), raw[::-1].hex().upper()
 
 
 def count_text(steps: int, approximate: bool) -> str:
@@ -152,6 +170,35 @@ class FlagsPanel(QWidget):
             )
 
 
+class FpuPanel(QWidget):
+    """The x87 register stack, ST(0) at the top, and the status word."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.table = make_table(["", "Register", "Value"], 8)
+        self.status = QLabel()
+        self.status.setFont(fixed_font())
+        self.status.setToolTip("TOP: which physical register is ST(0). C3 C2 C0: compare result.")
+        self._previous: list[float | None] = [None] * 8
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.table)
+        layout.addWidget(self.status)
+
+    def refresh(self, stack: list[float | None], status: int) -> None:
+        for row, value in enumerate(stack):
+            changed = value != self._previous[row]
+            text = "empty" if value is None else f"{value:.10g}"
+            set_row(self.table, row, [CHANGED_MARK if changed else "", f"ST({row})", text], changed)
+        self._previous = list(stack)
+        top = (status >> 11) & 7
+        c0, c2, c3 = (status >> 8) & 1, (status >> 10) & 1, (status >> 14) & 1
+        self.status.setText(f"Status {status:04X}  TOP={top}  C3={c3} C2={c2} C0={c0}")
+
+    def reset(self) -> None:
+        self._previous = [None] * 8
+
+
 class StackPanel(QWidget):
     """Dwords around ESP, with ESP and EBP marked."""
 
@@ -202,7 +249,7 @@ class VarsPanel(QWidget):
         self.table.setRowCount(len(variables))
         for row, (symbol, value) in enumerate(variables):
             changed = self._previous.get(symbol.name, value) != value
-            width = symbol.size * 2
+            decimal, hex_text = value_texts(symbol, value)
             set_row(
                 self.table,
                 row,
@@ -211,8 +258,8 @@ class VarsPanel(QWidget):
                     symbol.name,
                     format_address(symbol.address),
                     f"{symbol.type_name} x{symbol.count}" if symbol.count > 1 else symbol.type_name,
-                    str(value),
-                    f"{value & ((1 << 8 * symbol.size) - 1):0{width}X}",
+                    decimal,
+                    hex_text,
                 ],
                 changed,
             )

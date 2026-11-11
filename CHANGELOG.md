@@ -12,6 +12,8 @@ whole semester.
 - `AND`, `OR`, `XOR`, `NOT`, `SHL`, `SHR` in constant expressions.
 - Help > Coming from Visual Studio; three new examples; the Memory address box takes a
   variable name.
+- Floating point: REAL4/REAL8/REAL10 data, the x87 FPU, WriteFloat, ReadFloat,
+  ShowFPUStack, an FPU panel, and step back over FPU instructions.
 - New toolbar icons: original line drawings, larger, in theme colors.
 - The editor opens with a blank document ready for typing.
 - Emulator window: icon controls and matching panel headings.

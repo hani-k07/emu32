@@ -240,7 +240,6 @@ end main"""
         (".code\nmov ax, @data\nmov ds, ax", 2, "@data is a 16-bit segment value"),
         (".code\nf proc, x\nret\nf endp", 2, "needs a type"),
         (".code\n.if eax == 1", 2, "this block has no .ENDIF"),
-        (".data\nbig dt 1", 2, "80-bit data (dt) is not supported"),
         (".code\njmp $+2", 2, "jumps to $+n"),
         (".code\nmov eax, zz", 2, "unknown name 'zz'"),
         (".data\nx dd 1 / 0", 2, "division by zero"),

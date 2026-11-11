@@ -15,7 +15,8 @@ Download ZIP** button gives the source code, not the program.
 - Single step, step over, step back, run with a step delay, breakpoints and watches
 - A CPU structure view that shows fetch, decode and execute in a simple model
 - Runs the MASM programs written for Visual Studio and the Irvine32 library unchanged:
-  `INVOKE`, `.IF`/`.WHILE`/`.REPEAT`, macros (with `mWrite`), `STRUCT`, `QWORD`, `LOCAL`
+  `INVOKE`, `.IF`/`.WHILE`/`.REPEAT`, macros (with `mWrite`), `STRUCT`, `QWORD`, `LOCAL`,
+  and floating point with `REAL4`/`REAL8` and the x87 FPU (with an FPU panel)
 - Intel/NASM style as well
 - Built-in console library (`WriteString`, `ReadInt`, ...) and `int 21h` services
 - Converter, calculator and ASCII table; a quick start tutorial and references
@@ -82,8 +83,8 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
 
 - 32-bit only. A 16-bit mode is planned.
 - Release downloads are for Windows. On Linux and macOS, install with pip.
-- Flat memory without segments; one source file per program; no floating-point data and
-  no conditional assembly (`IF`, `REPT`).
+- Flat memory without segments; one source file per program; no conditional assembly
+  (`IF`, `REPT`).
   [docs/differences.md](docs/differences.md) lists everything emu32 does differently.
 - Step back covers the last 10,000 single steps; Run clears it. The trace window lists
   single steps only.
