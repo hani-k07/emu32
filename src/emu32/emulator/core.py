@@ -78,7 +78,9 @@ _UC_ERRORS = {
 
 
 class Emulator:
-    chunk_size = 100_000
+    # About 10 ms of work per chunk. The window thread gets the GIL back between chunks;
+    # with 100,000 a run starved it for a whole second (see docs/decisions.md D35).
+    chunk_size = 10_000
 
     def __init__(self, mode: CpuMode = MODE32, max_steps: int = 1_000_000) -> None:
         self.mode = mode
@@ -87,6 +89,9 @@ class Emulator:
         self.interrupt_handlers: dict[int, Callable[[Emulator], None]] = {}
         # Called at the end of every load, with memory mapped, to add stubs and hooks.
         self.setup_hooks: list[Callable[[Emulator], None]] = []
+        # Called in the running thread after each chunk of a run, while Unicorn is idle,
+        # so a caller can take a snapshot for a live display.
+        self.on_chunk: Callable[[], None] | None = None
         self.uc: unicorn.Uc | None = None
         self.total_steps = 0
         self.exited = False
@@ -251,6 +256,8 @@ class Emulator:
             executed = self._execute(count)
             done += executed
             self.total_steps += executed
+            if self.on_chunk is not None:
+                self.on_chunk()
             pc = self.register(self._ip)
             if self._fault is not None:
                 message, address = self._fault

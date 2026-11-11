@@ -147,6 +147,15 @@ ROUTINES: dict[str, Routine] = {
 }
 
 
+# How the names are usually written, for display.
+DISPLAY_NAMES = {
+    "writestring": "WriteString", "writechar": "WriteChar", "writeint": "WriteInt",
+    "writedec": "WriteDec", "writehex": "WriteHex", "crlf": "Crlf", "readint": "ReadInt",
+    "readchar": "ReadChar", "readstring": "ReadString", "dumpregs": "DumpRegs",
+    "exit": "exit", "exitprocess": "ExitProcess",
+}  # fmt: skip
+
+
 def routine_addresses(mode: CpuMode) -> dict[str, int]:
     """Stub address of each routine, keyed by lowercase name, for the assembler."""
     base = mode.region("library_stubs").start

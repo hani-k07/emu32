@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import re
 from importlib import resources
 from pathlib import Path
 
@@ -32,6 +31,7 @@ from emu32.gui.dialogs import (
     NewFileDialog,
     OptionsDialog,
     WelcomeDialog,
+    looks_like_intel,
     read_source,
 )
 from emu32.gui.icons import icon
@@ -39,11 +39,6 @@ from emu32.session import Session
 
 FILE_FILTER = "Assembly files (*.asm *.s *.inc);;All files (*)"
 AUTOSAVE_SECONDS = 20
-_INTEL_HINT = re.compile(r"^\s*section\s+\.", re.MULTILINE | re.IGNORECASE)
-
-
-def looks_like_intel(text: str) -> bool:
-    return bool(_INTEL_HINT.search(text))
 
 
 def example_files() -> list[Path]:
@@ -71,6 +66,7 @@ class EditorWindow(QMainWindow):
         self.session.max_steps = settings.get_int("max_steps", self.session.max_steps)
         self.font_size = settings.get_int("font_size", 11)
         self._untitled = 0
+        self.emulator = None
         self.resize(1100, 680)
 
         self.tabs = QTabWidget()
@@ -455,7 +451,21 @@ class EditorWindow(QMainWindow):
             self.open_emulator(self.current())
 
     def open_emulator(self, doc: Document) -> None:
-        QMessageBox.information(self, "emu32", "The emulator window comes in the next version.")
+        """Load the tab's program into the emulator window, with the tab's breakpoints.
+        Reload in the emulator window takes the tab's current text."""
+        if self.emulator is None:
+            from emu32.gui.emulator_window import EmulatorWindow
+
+            self.emulator = EmulatorWindow()
+        self.emulator.file_path = None
+        self.emulator.source_provider = lambda d=doc: d.toPlainText()
+        loaded = self.emulator.load_source(
+            doc.toPlainText(), doc.intel, doc.breakpoint_lines(), doc.display_name()
+        )
+        if loaded:
+            self.emulator.show()
+            self.emulator.raise_()
+            self.emulator.activateWindow()
 
     # Other commands
 
@@ -604,5 +614,8 @@ class EditorWindow(QMainWindow):
                 return
         self.autosave_timer.stop()
         self.clear_autosave()
+        if self.emulator is not None:
+            self.emulator.close()
+            self.emulator.shutdown()
         settings.put("editor_geometry", self.saveGeometry())
         event.accept()

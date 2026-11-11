@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
@@ -265,3 +266,11 @@ def read_source(path: str | Path) -> tuple[str, bool]:
         return data.decode("utf-8-sig"), False
     except UnicodeDecodeError:
         return data.decode("cp1252", errors="replace"), True
+
+
+_INTEL_HINT = re.compile(r"^\s*section\s+\.", re.MULTILINE | re.IGNORECASE)
+
+
+def looks_like_intel(text: str) -> bool:
+    """Guess Intel/NASM syntax from a `section .text` style line."""
+    return bool(_INTEL_HINT.search(text))

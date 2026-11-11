@@ -140,13 +140,14 @@ class CodeEditor(QPlainTextEdit):
     def current_line(self) -> int:
         return self.textCursor().blockNumber() + 1
 
-    def go_to_line(self, line: int) -> None:
+    def go_to_line(self, line: int, focus: bool = True) -> None:
         block = self.document().findBlockByNumber(max(line, 1) - 1)
         if block.isValid():
             cursor = QTextCursor(block)
             self.setTextCursor(cursor)
             self.centerCursor()
-            self.setFocus()
+            if focus:
+                self.setFocus()
 
     def set_error_lines(self, lines: set[int]) -> None:
         self.error_lines = set(lines)

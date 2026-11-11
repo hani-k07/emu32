@@ -271,3 +271,59 @@ In M5, Emulate compiles and then says the emulator window comes in the next vers
 Calculator, Converter, ASCII table, the syntax reference and the tutorial are in the menus
 but disabled or show a short note until M7. Toolbar icons are drawn at run time as colored
 tiles with a symbol, so the project ships no image files.
+
+## D35. Chunk size and a responsive window (2026-11-11)
+
+A 1,000,000-step run with chunks of 100,000 instructions left the window thread with one
+timer tick in one second: the block hook calls Python about 500,000 times a second, and
+the window thread only got the GIL back when a chunk ended. Measured on Windows, Python 3.14:
+
+| Chunk | Run time | Window ticks (10 ms timer) | Longest gap |
+|---|---|---|---|
+| 100,000 | 0.96 s | 1 | about 1 s |
+| 10,000 | 0.99 s | 67 | 21 ms |
+| 5,000 plus 1 ms pause | 1.29 s | 119 | 19 ms |
+
+The default chunk is now 10,000 instructions: no measurable cost, and the window stays
+responsive. A test runs 1,000,000 steps in the window and fails if the event loop is blocked
+for more than 250 ms.
+
+## D36. Reading state while the program runs (2026-11-11)
+
+Unicorn must not be read from the window thread while the worker runs it. The session holds
+a lock while the engine runs and publishes a register snapshot and the step count between
+chunks. During a fast Run the window shows that snapshot at about 30 updates per second.
+In step delay mode the lock is free between steps, so the window refreshes every panel then.
+When a command ends, everything is refreshed.
+
+## D37. Change markers (2026-11-11)
+
+Changed registers, flags, variables and memory bytes get a `*` in their first column as well
+as a background color, so a change is visible without color (section 8.8). Registers and
+flags compare with their values before the last command. Memory marks bytes that differ from
+what the panel showed before, which also covers bytes changed by a Run. The disassembly marks
+the current instruction with `>` and breakpoints with `B`.
+
+## D38. Emulator window layout (2026-11-11)
+
+The tool windows of section 8.4 are dock panels: Screen at the bottom, Source on the right,
+Aux, Vars, Debug, Stack and Flags tabbed with Source. The buttons in the bottom row show
+them; each can float as its own window. The CPU structure view is a separate window. The
+memory panel shows a 64 KB window of the address space at a time; the address box moves it.
+The disassembly lists the whole program, decoded once per load, and shows library calls by
+name (`call WriteString`). Step over (F10) is in the Debug menu, from M4.
+
+## D39. Projector mode (2026-11-11)
+
+View > Projector mode (Ctrl+Shift+P) switches to a high-contrast black and white theme and
+scales the emulator window's fonts by 1.6. Ctrl+plus and Ctrl+minus scale further. The
+editor keeps its own zoom.
+
+## D40. CPU structure view details (2026-11-11)
+
+Phases are shown in the order Fetch, Decode, Execute, Memory access; the last appears only
+when the step touched data memory, and lists every access. Fetch: PC and AR hold the
+instruction address and IR the instruction bytes. Decode: PC moves to the next sequential
+instruction and IR adds the decoded text. Execute: PC is the real next EIP (after a jump),
+AC is EAX, and the ALU shows the operation, its inputs and result in hex. Memory access: AR
+is the data address and DR the data. Active parts get a thick outline and a `>` marker.
