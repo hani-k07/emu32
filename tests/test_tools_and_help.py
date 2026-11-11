@@ -143,3 +143,13 @@ def test_window_layout_is_remembered(qtbot):
         assert not second.docks["Vars"].isHidden()
     finally:
         second.shutdown()
+
+
+def test_about_lists_every_engine_with_a_version(qtbot):
+    from emu32.gui.dialogs import AboutDialog, component_versions
+
+    dialog = AboutDialog()
+    qtbot.addWidget(dialog)
+    parts = component_versions()
+    assert [p[0].split()[0] for p in parts] == ["Unicorn", "Keystone", "Capstone", "Qt", "Python"]
+    assert all(version for _, version, _ in parts)

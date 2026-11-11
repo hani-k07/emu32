@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import platform
 import re
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QDialogButtonBox,
     QFormLayout,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -28,8 +30,10 @@ from PySide6.QtWidgets import (
 )
 
 from emu32 import __version__
+from emu32.gui.panels import fixed_font
 from emu32.gui.templates import TEMPLATES
 from emu32.gui.theme import CHOICES
+from emu32.gui.theme.tokens import TYPE_SCALE
 
 REPOSITORY = "https://github.com/hani-k07/emu32"
 AUTHOR = "hani-k07"
@@ -237,26 +241,87 @@ class OptionsDialog(QDialog):
         layout.addWidget(buttons)
 
 
+def component_versions() -> list[tuple[str, str, str]]:
+    """(name, version, license) for each engine and library inside emu32."""
+
+    def version(module: str) -> str:
+        try:
+            return str(__import__(module).__version__)
+        except Exception:  # noqa: BLE001 - a missing version must never stop the dialog
+            return ""
+
+    return [
+        ("Unicorn (emulator)", version("unicorn"), "GPL-2.0"),
+        ("Keystone (assembler)", version("keystone"), "GPL-2.0"),
+        ("Capstone (disassembler)", version("capstone"), "BSD-3-Clause"),
+        ("Qt for Python", version("PySide6"), "LGPL-3.0 / GPL"),
+        ("Python", platform.python_version(), "PSF-2.0"),
+    ]
+
+
 class AboutDialog(QDialog):
+    """Name and version, the license, the parts emu32 is built from, and where to find it."""
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("About emu32")
-        text = QLabel(
-            f"<h3>emu32 {__version__}</h3>"
-            "<p>A tool for learning 32-bit x86 assembly.</p>"
-            f"<p>Author: {AUTHOR}</p>"
-            f"<p>{LICENSE_TEXT}</p>"
-            f'<p><a href="{REPOSITORY}">{REPOSITORY}</a></p>'
-            "<p>emu32 is an independent project. It is not affiliated with EMU8086.</p>"
-            "<p>Built with Unicorn, Keystone, Capstone and Qt for Python.</p>"
+        name = QLabel("emu32")
+        font = name.font()
+        font.setPointSize(TYPE_SCALE[-1] + 8)
+        font.setBold(True)
+        name.setFont(font)
+        version = QLabel(f"version {__version__}")
+        version.setFont(fixed_font())
+        subtitle = QLabel("32-bit x86 assembly learning tool")
+        for label in (name, version, subtitle):
+            label.setAlignment(Qt.AlignCenter)
+
+        license_box = QGroupBox("License")
+        license_text = QLabel(
+            f"{LICENSE_TEXT}<br>Use, copy, change and share it freely. "
+            "No registration or internet connection is needed."
         )
-        text.setOpenExternalLinks(True)
-        text.setWordWrap(True)
+        license_text.setWordWrap(True)
+        license_text.setAlignment(Qt.AlignCenter)
+        QVBoxLayout(license_box).addWidget(license_text)
+
+        built_box = QGroupBox("Built with")
+        grid = QGridLayout(built_box)
+        grid.setHorizontalSpacing(16)
+        for row, (part, ver, lic) in enumerate(component_versions()):
+            cells = [QLabel(part), QLabel(ver), QLabel(lic)]
+            cells[1].setFont(fixed_font())
+            cells[2].setObjectName("muted")
+            for column, cell in enumerate(cells):
+                grid.addWidget(cell, row, column)
+        notices = QLabel("Full license texts: THIRD_PARTY_NOTICES.md, in the program folder.")
+        notices.setObjectName("muted")
+        notices.setWordWrap(True)
+        grid.addWidget(notices, len(component_versions()), 0, 1, 3)
+
+        copyright_ = QLabel(
+            f"Copyright (C) 2026 {AUTHOR}<br>"
+            "emu32 is an independent project, not affiliated with EMU8086."
+        )
+        copyright_.setAlignment(Qt.AlignCenter)
+        link = QLabel(f'<a href="{REPOSITORY}">{REPOSITORY.removeprefix("https://")}</a>')
+        link.setOpenExternalLinks(True)
+        link.setAlignment(Qt.AlignCenter)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
         buttons.accepted.connect(self.accept)
+
         layout = QVBoxLayout(self)
-        layout.addWidget(text)
+        layout.setContentsMargins(24, 16, 24, 16)
+        layout.setSpacing(8)
+        for widget in (name, version, subtitle):
+            layout.addWidget(widget)
+        layout.addSpacing(8)
+        layout.addWidget(license_box)
+        layout.addWidget(built_box)
+        layout.addWidget(copyright_)
+        layout.addWidget(link)
         layout.addWidget(buttons)
+        self.setFixedWidth(440)
 
 
 def read_source(path: str | Path) -> tuple[str, bool]:
