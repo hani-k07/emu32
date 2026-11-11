@@ -258,6 +258,8 @@ offset), `SIZEOF Employee` and `TYPE team`.
 `DWORD PTR big` and `DWORD PTR big + 4`. `name LABEL type` gives the data that
 follows a second name and size. `ALIGN 4` pads the data to a multiple of 4.
 Anonymous labels: `@@:` with `jmp @F` (the next one) and `jmp @B` (the previous one).
+Constant expressions may use `+ - * / MOD`, `AND OR XOR NOT` and `SHL SHR`; use
+parentheses when mixing shifts with `+` or `-`.
 
 ## Not supported
 

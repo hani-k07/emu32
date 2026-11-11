@@ -654,3 +654,13 @@ of a STRUCT type, `N DUP(<>)`, `var.field`, `(Type PTR [reg]).field`, `Type.fiel
 stored as 8 bytes; there are no 64-bit registers in 32-bit code, so it is read a dword at a
 time. `name LABEL type` and `ALIGN n` work in the data section; ALIGN in code is accepted
 and has no effect. Conditional assembly (IF, REPT, FOR) remains unsupported.
+
+## D72. Word operators in constant expressions (2026-11-12)
+
+MASM constants often use `AND`, `OR`, `XOR`, `NOT`, `SHL` and `SHR`, for example
+`MASK = 0FFh AND 0Fh` or `mov eax, 1 SHL 4`. They are now evaluated in constants and in
+immediate operands (an operand without brackets that uses one is worked out to a number).
+Precedence follows Python's (shifts below + and -), so `1 SHL 4 + 1` is 32 where MASM gives
+17; parentheses give the same result in both. In `.IF`/`.WHILE` conditions, `SDWORD PTR`
+on a register now only selects a signed compare, as in MASM, instead of reaching the
+assembler as an operand size.
