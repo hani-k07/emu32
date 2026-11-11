@@ -75,7 +75,7 @@ class Session:
     def __init__(
         self,
         mode: CpuMode = MODE32,
-        max_steps: int = 1_000_000,
+        max_steps: int = 100_000_000,
         history_limit: int = DEFAULT_LIMIT,
     ) -> None:
         self.mode = mode

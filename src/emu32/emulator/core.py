@@ -92,7 +92,7 @@ class Emulator:
     # with 100,000 a run starved it for a whole second (see docs/decisions.md D35).
     chunk_size = 10_000
 
-    def __init__(self, mode: CpuMode = MODE32, max_steps: int = 1_000_000) -> None:
+    def __init__(self, mode: CpuMode = MODE32, max_steps: int = 100_000_000) -> None:
         self.mode = mode
         self.max_steps = max_steps
         # Handlers for `int n`. Interrupt numbers without a handler stop the program.
