@@ -3,6 +3,24 @@ import sys
 from pathlib import Path
 
 
+def forbid_network() -> list[str]:
+    """Make every network connection attempt fail, and record it. emu32 works offline, so
+    the self-test fails if anything in the program tries to connect."""
+    import socket
+
+    attempts: list[str] = []
+
+    def refuse(*args, **kwargs):
+        attempts.append(repr(args[1:] if args and isinstance(args[0], socket.socket) else args))
+        raise OSError("emu32 works offline; a network connection was attempted")
+
+    socket.socket.connect = refuse
+    socket.socket.connect_ex = refuse
+    socket.create_connection = refuse
+    socket.getaddrinfo = refuse
+    return attempts
+
+
 def self_test() -> int:
     """Check a built copy works without showing a window: assemble and run an example,
     create both windows offscreen. Exit code 0 means it passed (used by the release build).
@@ -18,6 +36,7 @@ def self_test() -> int:
     crash_log = log_path().open("a", encoding="utf-8")
     faulthandler.enable(file=crash_log)
 
+    attempts = forbid_network()
     try:
         from importlib import resources
 
@@ -43,6 +62,9 @@ def self_test() -> int:
         app.quit()
         if not ok:
             write_log("self-test: the windows did not load the example")
+            return 1
+        if attempts:
+            write_log(f"self-test: network connections were attempted: {attempts}")
             return 1
         write_log("self-test: passed")
         return 0
