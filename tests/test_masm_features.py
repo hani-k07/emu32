@@ -269,3 +269,25 @@ def test_real_data_and_float_literal_errors():
     assert errors(program("nop", "d DWORD 1.5")) == [
         (3, "1.5 is a floating-point number; declare it as REAL4 or REAL8")
     ]
+
+
+def test_conditional_assembly_and_repeat_blocks():
+    output = run((PROGRAMS / "q06_conditional.asm").read_text(encoding="utf-8"))
+    assert output == "1 4 9 16 25 \nabc\n8\n0 0\ndebug build\nfive\n"
+
+
+@pytest.mark.parametrize(
+    ("source", "line", "text"),
+    [
+        (".code\nendif", 2, "ENDIF without a matching IF"),
+        (".code\nif 1", 2, "IF has no ENDIF"),
+        (".code\nrept 3\nnop", 2, "REPT has no ENDM"),
+        (".data\nx dword 1\n.code\nif x\nendif", 4, "needs a constant expression"),
+        ("n = 1\nwhile n\nendm", 2, "WHILE repeated 10000 times"),
+        (".code\nifidn <a>\nendif", 2, "IFIDN compares two texts"),
+        (".code\nfor x\nendm", 2, "write FOR name, <items>"),
+    ],
+)
+def test_conditional_errors(source, line, text):
+    found = errors(source)
+    assert any(n == line and text in message for n, message in found), found

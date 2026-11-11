@@ -27,7 +27,9 @@ there is one, the supported form.
 | `lea dx, msg`, `mov dx, OFFSET msg` (an address in a 16-bit register) | use the 32-bit register: `lea edx, msg` |
 | `SEGMENT`, `ENDS`, `ASSUME` | use `.data` and `.code` |
 | `.UNTILCXZ` with a condition | use `.UNTIL` |
-| conditional assembly: `IF`, `IFDEF`, `REPT`, `FOR`, `FORC`, `WHILE` (without the dot), `EXITM` | not supported |
+| text in angle brackets (`FORC c, <ABC>`) | read without case, like names; use quotes to keep case |
+| `IFDEF` of a variable or label | `IFDEF` knows constants, text macros, macros and structures |
+| `EXITM <value>` (macro functions), the `%` expansion operator | not supported |
 | nested `STRUCT` fields and `UNION` | use BYTE, WORD, DWORD or QWORD fields |
 | `EXTERN`, `EXTERNDEF`: a program split over several source files | put every procedure in one file |
 | `PROC C` and other calling conventions | procedures always use stdcall: they remove their own arguments |
