@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "emu32"
+version = "0.1.0.dev0"
+description = "Desktop tool for learning 32-bit x86 assembly: edit, compile, and step through programs."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-2.0-or-later"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+authors = [{ name = "hani-k07" }]
+dependencies = [
+    "unicorn>=2.1,<3",
+    "keystone-engine>=0.9.2,<0.10",
+    "capstone>=5.0,<6",
+    # Only QtCore, QtGui and QtWidgets are used; the full PySide6 bundle adds
+    # several hundred MB of modules this project does not need.
+    "PySide6-Essentials>=6.6",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-qt>=4.4", "ruff>=0.6"]
+
+[project.scripts]
+emu32 = "emu32.__main__:main"
+
+[project.urls]
+Repository = "https://github.com/hani-k07/emu32"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+qt_api = "pyside6"
