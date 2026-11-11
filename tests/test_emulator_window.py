@@ -63,7 +63,7 @@ def test_load_shows_registers_memory_and_disassembly(window):
     assert window.source.toPlainText() == LOOP
     texts = [row[2] for row in model.rows]
     assert "call WriteDec" in texts and "call exit" in texts
-    assert "loop top" in texts
+    assert "loop main.top" in texts  # labels inside a PROC are local to it
 
 
 def test_single_step_marks_changed_registers(window, qtbot):

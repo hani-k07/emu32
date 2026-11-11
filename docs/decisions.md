@@ -453,3 +453,87 @@ public release link, checking the SHA-256 against the release notes), marks it a
 downloaded from the internet, unpacks it into a folder with spaces and accented letters,
 checks the contents, runs the portable copy, and installs into a folder with a non-ASCII
 name, runs and uninstalls.
+
+## D56. A reserve of references to None on Python 3.11 (2026-11-12)
+
+CI on Ubuntu with Python 3.11 aborted after all tests passed: "none_dealloc: deallocating
+None". Measured on 3.11, creating and freeing one `unicorn.Uc` loses about two references
+to None (-406 over 200 instances, with no hooks and no memory mapped), so the cause is in
+the unicorn 2.1.4 Python binding, not in emu32. Every program load creates a new `Uc`; a
+few hundred loads in one process drained None to zero at interpreter exit. Python 3.12 and
+newer make None immortal, so only 3.11 is affected. On 3.11, `emulator/core.py` holds
+200,000 extra references to None (1.6 MB), enough for about 100,000 loads in one session.
+The release builds use Python 3.13 and do not need it. The bug should be reported upstream.
+
+## D57. Running again after a CPU fault (2026-11-12)
+
+After a divide error, pressing Run or Step again hung the emulator. The interrupt hook
+stops Unicorn in the middle of raising the exception, so the CPU still counted an exception
+in progress; the next divide error became a double fault (interrupt 08h), and inside a
+session the run never returned. After a CPU exception the emulator now restores a clean CPU
+context and writes all registers back (since D62: a fresh Unicorn instance with the same
+memory and registers). Running again reports the same error;
+after the user fixes the cause (for example edits ECX), the program continues.
+
+## D58. More library procedures (2026-11-12)
+
+Testing programs for the course's labs 9 to 12 showed students need more of the console
+library than section 7.4 lists. Added, written from their documented register use:
+WriteBin, WriteBinB, WriteHexB, ReadDec, ReadHex, ReadKey, DumpMem, Clrscr, WaitMsg,
+Delay, Randomize, Random32, RandomRange, IsDigit, GetMseconds, ParseDecimal32,
+ParseInteger32, and the string procedures Str_length, Str_copy, Str_compare, Str_ucase and
+Str_trim. The string procedures take stack arguments (called with INVOKE), so their stubs
+are `ret n` instead of `ret`. SetTextColor and Gotoxy are accepted and ignored. Random
+numbers start from a fixed seed, so a program prints the same numbers every run until it
+calls Randomize. Not provided: WriteStackFrame, MsgBox, file procedures.
+
+## D59. Advanced procedures (2026-11-12)
+
+Lab 12 (advanced procedures) is built on MASM's procedure syntax, which emu32 rejected
+before. Now supported, by expanding it into ordinary instructions in the assembler:
+
+- `PROC USES regs, param:TYPE, ...`: entry code `push ebp`, `mov ebp, esp`, `sub esp, n`
+  for LOCAL variables, then `push` for each USES register; at each `ret`, the reverse
+  pops, `leave`, and `ret n` that removes the arguments (stdcall, MASM's default with
+  `.model flat, stdcall` and the course library). Parameters live at `[ebp+8]` and up,
+  LOCAL variables below EBP, each sized by its declared type.
+- `INVOKE name, args`: pushes from last to first, then calls. `ADDR` gives `push OFFSET`
+  for globals and `lea eax` plus `push eax` for LOCAL variables. 8- and 16-bit register
+  arguments are zero-extended through EAX.
+- `PROTO` is accepted and ignored; `PUBLIC` is ignored; `EXTERN` gets a clear message
+  (one source file at a time).
+- Labels inside a PROC are local to it, as in MASM, so procedures can reuse `next:` and
+  `done:`; `name::` stays global. The disassembly shows them as `proc.label`.
+
+One source line may now produce several instructions. They all map to that line, and the
+line maps to the first of them, so breakpoints, stepping and the line map keep working; a
+test steps through such code and back.
+
+## D60. `rep movsd` (2026-11-12)
+
+Keystone reads a bare `movsd` as the SSE2 instruction of the same name and rejects it. The
+assembler adds the string form's operands (`dword ptr es:[edi], dword ptr [esi]`).
+
+## D61. Course topic programs (2026-11-12)
+
+`tests/course_topics/` holds four programs written for emu32 that cover the course's lab
+topics 9 to 12: shifts, rotates, MUL and DIV; library procedures, extended addition and
+decimal arithmetic; string instructions and two-dimensional arrays; advanced procedures.
+Each runs in a test against its full expected output. The course's own lab programs, when
+the instructor provides them, go to `tests/lab_programs/` (section 8.8).
+
+## D62. Keystone keeps hex as its number base after NASM mode (2026-11-12)
+
+The lab 12 test failed in about one full-suite run in four: `add eax, third` read past the
+top of the stack. The assembled bytes differed between runs. Reproduced: after any program is
+assembled in Intel/NASM mode, Keystone parses plain numbers as hex for the rest of the
+process, even in new instances with Intel syntax set explicitly, so the generated
+`[ebp+12]` became `[ebp+0x12]` and `ret 12` became `ret 18`. Numbers from source files were
+never affected, because the cleaner already writes every number as `0x` hex (D12). All
+generated text (parameter and LOCAL offsets, `ret n`, `sub esp, n`) now uses `0x` hex too.
+A test assembles a NASM program first and checks that a MASM program's bytes do not change.
+
+While searching for this, two other risks were removed, even though neither was the cause:
+the clean CPU context of D57 is gone (after a CPU fault the emulator now rebuilds a fresh
+Unicorn instance with the same memory and registers), and Python's cyclic garbage collector
+is paused while Unicorn executes, so no finished instance is finalized inside a hook.

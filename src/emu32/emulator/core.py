@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import enum
+import gc
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
@@ -14,6 +16,14 @@ from emu32.cpu_mode import MODE32, CpuMode
 from emu32.emulator import flags
 
 HLT = 0xF4
+
+if sys.version_info < (3, 12):
+    # ponytail: unicorn 2.1.4's Python binding loses about two references to None for every
+    # Uc it creates and frees (measured on Python 3.11). When None's count reaches zero,
+    # Python aborts; CI on Linux hit that at exit after a few hundred program loads. From
+    # 3.12 on, None is immortal. These references keep the count far from zero (about
+    # 100,000 loads). Remove when the binding is fixed or 3.11 support ends. D56.
+    _NONE_RESERVE = [None] * 200_000
 
 
 class StopReason(enum.Enum):
@@ -127,23 +137,12 @@ class Emulator:
                 raise EmulatorError(
                     f"the program's {name} is {len(blob)} bytes; the limit is {region.size}"
                 )
-        uc = unicorn.Uc(unicorn.UC_ARCH_X86, mode.uc_mode)
-        for region in mode.regions:
-            uc.mem_map(region.start, region.size, region.perms)
-        uc.mem_write(self._exit, bytes([HLT]))
+        self._recording = None
+        self._block_starts.clear()
+        self._new_engine()
+        uc = self.uc
         uc.mem_write(code_region.start, code)
         uc.mem_write(data_region.start, data)
-        # A block hook costs far less than a per-instruction hook and still gives an exact
-        # instruction count when a run ends partway through a chunk.
-        uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
-        uc.hook_add(unicorn.UC_HOOK_INTR, self._on_interrupt)
-        uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._on_invalid_memory)
-        self.uc = uc
-        self._block_starts.clear()
-        self._recording = None
-        self._record_hooks = []
-        for address in self._breakpoints:
-            self._breakpoints[address] = self._hook_breakpoint(address)
 
         # `ret` from the entry procedure lands on the exit stub, which ends the program.
         sp = mode.region("stack").end - mode.word_size
@@ -154,6 +153,25 @@ class Emulator:
         self.total_steps = 0
         self.exited = False
         self.exit_code = 0
+        self._cpu_fault = False
+
+    def _new_engine(self) -> None:
+        """A fresh Unicorn instance with the memory map, hooks, breakpoints and stubs."""
+        uc = unicorn.Uc(unicorn.UC_ARCH_X86, self.mode.uc_mode)
+        for region in self.mode.regions:
+            uc.mem_map(region.start, region.size, region.perms)
+        uc.mem_write(self._exit, bytes([HLT]))
+        # A block hook costs far less than a per-instruction hook and still gives an exact
+        # instruction count when a run ends partway through a chunk.
+        uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
+        uc.hook_add(unicorn.UC_HOOK_INTR, self._on_interrupt)
+        uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._on_invalid_memory)
+        self.uc = uc
+        for address in self._breakpoints:
+            self._breakpoints[address] = self._hook_breakpoint(address)
+        self._record_hooks = []
+        if self._recording is not None:
+            self._record_hooks = self._add_record_hooks()
         for setup in self.setup_hooks:
             setup(self)
 
@@ -207,7 +225,10 @@ class Emulator:
 
     def start_recording(self) -> None:
         self._recording = []
-        self._record_hooks = [
+        self._record_hooks = self._add_record_hooks()
+
+    def _add_record_hooks(self) -> list[int]:
+        return [
             self.uc.hook_add(unicorn.UC_HOOK_MEM_READ, self._on_access),
             self.uc.hook_add(unicorn.UC_HOOK_MEM_WRITE, self._on_access),
         ]
@@ -282,6 +303,11 @@ class Emulator:
         self._break_hit = None
         self._exit_requested = False
         resume_at = None
+        # No cyclic garbage collection while Unicorn runs: a collection started inside one
+        # of our hooks could finalize, and close, another finished Unicorn instance in the
+        # middle of this run.
+        collecting = gc.isenabled()
+        gc.disable()
         try:
             self.uc.emu_start(self.register(self._ip), self._exit, count=count)
         except unicorn.UcError as error:
@@ -291,6 +317,11 @@ class Emulator:
         except HookStop as stop:
             self._stop_requested = True
             resume_at = stop.resume_at
+        finally:
+            if collecting:
+                gc.enable()
+        if self._cpu_fault:
+            self._clear_cpu_fault()
         pc = self.register(self._ip)
         executed = self._counted
         # Blocks are counted when entered; drop the instructions of the last block that did
@@ -301,6 +332,22 @@ class Emulator:
             self.set_register(self._ip, resume_at)
             executed -= 1  # the interrupted instruction will run again
         return max(0, min(executed, count))
+
+    def _clear_cpu_fault(self) -> None:
+        """Stopping inside the interrupt hook leaves the CPU midway through raising the
+        exception. Running again would then turn the next divide error into a double fault
+        (interrupt 08h), and inside a session it could hang. A fresh Unicorn instance with the
+        same memory and registers has no exception in progress; the program state stays the
+        same. Faults are rare, so copying the memory (about 1.2 MB) costs nothing noticeable.
+        """
+        registers = self.registers()
+        memory = [(r.start, bytes(self.uc.mem_read(r.start, r.size))) for r in self.mode.regions]
+        self._new_engine()
+        for start, blob in memory:
+            self.uc.mem_write(start, blob)
+        for name, value in registers.items():
+            self.set_register(name, value)
+        self._cpu_fault = False
 
     def _halted_before(self, pc: int) -> bool:
         return pc - 1 in self._last_block and self.read_memory(pc - 1, 1)[0] == HLT
@@ -325,6 +372,8 @@ class Emulator:
             handler(self)
             return
         pc = self.register(self._ip)
+        if number < 32:
+            self._cpu_fault = True  # a CPU exception, not an `int n` instruction
         if number == 0:
             # Divide error is a fault: EIP still points at the div or idiv.
             self._fault = ("divide error: division by zero, or the result is too large", pc)

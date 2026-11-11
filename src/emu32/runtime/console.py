@@ -45,6 +45,20 @@ class Console:
     def output(self) -> str:
         return "".join(self._output)
 
+    def clear_output(self) -> None:
+        """Clear the screen (Clrscr). Typed input that is not read yet stays."""
+        self._output.clear()
+        if self.on_output:
+            self.on_output("")
+
+    def try_read_char(self) -> str | None:
+        """One typed character if there is one, without waiting (ReadKey)."""
+        with self._cond:
+            if not self._input:
+                return None
+            char, self._input = self._input[0], self._input[1:]
+            return char
+
     def length(self) -> int:
         return sum(len(part) for part in self._output)
 

@@ -374,3 +374,15 @@ main:
         ("ax", 0),
         ("missing", "unknown name 'missing'"),
     ]
+
+
+def test_run_again_after_a_divide_error_reports_it_again():
+    session = loaded(".code\nmain:\nxor ecx, ecx\nmov eax, 10\ndiv ecx\nret")
+    first = session.run()
+    assert first.message.startswith("line 5: divide error")
+    for again in (session.run(), session.step(), session.run()):
+        assert again.reason is StopReason.ERROR
+        assert again.message.startswith("line 5: divide error")
+    session.set_register("ECX", 2)  # fix the divisor and go on
+    assert session.run().reason is StopReason.EXITED
+    assert session.emulator.register("EAX") == 5

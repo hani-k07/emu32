@@ -15,12 +15,14 @@ from emu32.assembler.operands import (
     KEYWORDS,
     NAME,
     REGISTER_BITS,
+    SIZE_NAMES,
     Scope,
     Symbol,
     evaluate,
     names_in,
     rewrite_operand,
     split_operands,
+    substitute_names,
 )
 from emu32.cpu_mode import MODE32, CpuMode
 
@@ -39,7 +41,6 @@ _HIGH_LEVEL = {
     ".untilcxz", ".break", ".continue",
 }  # fmt: skip
 _UNSUPPORTED_WORDS = {
-    "invoke": "INVOKE is not supported; push the arguments and use CALL",
     "macro": "macros are not supported",
     "endm": "macros are not supported",
     "struct": "structures are not supported",
@@ -47,7 +48,6 @@ _UNSUPPORTED_WORDS = {
     "ends": "structures and segments are not supported",
     "segment": "segments are not supported; use .data and .code",
     "assume": "ASSUME is not needed: emu32 uses flat 32-bit memory without segments",
-    "local": "LOCAL is not supported; keep variables in .data or on the stack",
 }
 _DATA_SEGMENT_HINT = (
     "@data is a 16-bit segment value; 32-bit flat memory has no segments. "
@@ -95,10 +95,45 @@ class Program:
 
 
 @dataclass
+class _Frame:
+    """A PROC with USES, parameters or LOCAL variables (MASM stdcall frame)."""
+
+    name: str
+    line: int
+    uses: list[str]
+    params: dict[str, tuple[int, int]]  # name -> (offset from EBP, size in bytes)
+    locals: dict[str, tuple[int, int]] = field(default_factory=dict)
+    local_bytes: int = 0
+    started: bool = False  # prologue already emitted
+
+    @property
+    def uses_ebp(self) -> bool:
+        return bool(self.params or self.locals)
+
+    @property
+    def variables(self) -> dict[str, tuple[int, int]]:
+        return {**self.params, **self.locals}
+
+
+@dataclass
 class _Item:
     line: int
     text: str
     label: bool = False
+    proc: str | None = None
+    frame: _Frame | None = None
+    invoke: bool = False
+
+
+_SIZE_OF_TYPE = {"byte": 1, "sbyte": 1, "word": 2, "sword": 2, "dword": 4, "sdword": 4}
+_PROC_ATTRIBUTES = {"near", "far", "public", "private", "stdcall", "c", "pascal"}
+_FRAME_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword)\s+ptr\s+(.*)$")
+
+
+def _ebp_offset(offset: int) -> str:
+    # Generated numbers are always hex: after Keystone has run in NASM mode, its default
+    # number base stays 16 for the whole process, so a plain 12 would mean 18. D62.
+    return f"ebp{'+' if offset >= 0 else '-'}{hex(abs(offset))}"
 
 
 class _Assembler:
@@ -115,6 +150,9 @@ class _Assembler:
         self.labels: list[str] = []
         self.section = "code"
         self.procs: list[tuple[str, int]] = []
+        self.frame: _Frame | None = None
+        self.local_labels: dict[str, set[str]] = {}  # procedure -> its own labels
+        self.display: dict[str, str] = {}  # label name given to Keystone -> name shown
         self.end_name: tuple[str, int] | None = None
         self.ended = False
 
@@ -165,7 +203,18 @@ class _Assembler:
             return
         if first in ("includelib", "option", "title", "page", "subttl"):
             return
-        if second == "proto":
+        if second.rstrip(",") == "proto" or first == "public":
+            return
+        if first in ("extern", "extrn", "externdef"):
+            raise AsmError(
+                "EXTERN refers to a procedure in another source file; emu32 assembles one "
+                "file at a time, so put that procedure in this file"
+            )
+        if first == "local":
+            self._local(rest)
+            return
+        if first == "invoke":
+            self._invoke(number, rest)
             return
         if first == "org":
             self.warnings.append(
@@ -183,8 +232,9 @@ class _Assembler:
             return
         if self._data(number, words):
             return
-        if not self.nasm and second == "proc":
-            self._proc(number, first, words[2:])
+        if not self.nasm and second.rstrip(",") == "proc":
+            # Everything after PROC; MASM allows `name PROC, param:DWORD`.
+            self._proc(number, first, rest[4:])
             return
         if not self.nasm and second == "endp":
             self._endp(first)
@@ -192,7 +242,7 @@ class _Assembler:
         label = (_LOCAL_LABEL_RE if self.nasm else _LABEL_RE).match(text)
         if label and not text.startswith(("rep ", "lock ")):
             name, remainder = label.groups()
-            self._code_label(number, name)
+            self._code_label(number, name, scope_global=text.startswith(f"{name}::"))
             if remainder:
                 self._instruction(number, remainder)
             return
@@ -260,40 +310,138 @@ class _Assembler:
         self.data.define(number, name, directive, operands)
         return True
 
-    def _proc(self, number: int, name: str, options: list[str]) -> None:
-        extra = [w for w in options if w not in ("near", "public", "private")]
-        if extra:
-            raise AsmError(
-                f"PROC options '{' '.join(extra)}' are not supported; "
-                "save registers with PUSH and POP"
-            )
-        self._code_label(number, name)
+    def _proc(self, number: int, name: str, options: str) -> None:
+        """`name PROC [attributes] [USES regs] [,] [param:type, ...]`"""
+        words = options.split()
+        while words and words[0].rstrip(",") in _PROC_ATTRIBUTES:
+            words.pop(0)
+        text = " ".join(words)
+        uses: list[str] = []
+        if text.startswith("uses "):
+            registers, _, text = text[5:].partition(",")
+            uses = registers.split()
+            for register in uses:
+                if REGISTER_BITS.get(register) != self.mode.bits:
+                    raise AsmError(f"USES needs 32-bit registers; '{register}' is not one")
+        params: dict[str, tuple[int, int]] = {}
+        for index, part in enumerate(split_operands(text.strip().lstrip(",").strip())):
+            pname, colon, ptype = (piece.strip() for piece in part.partition(":"))
+            if not colon:
+                raise AsmError(f"parameter '{part}' needs a type, for example {part}:DWORD")
+            params[pname] = (8 + 4 * index, self._type_size(ptype))
+        self._code_label(number, name, scope_global=True)
         self.procs.append((name, number))
+        self.local_labels.setdefault(name, set())
+        self.frame = _Frame(name, number, uses, params) if uses or params else None
+
+    @staticmethod
+    def _type_size(type_text: str) -> int:
+        if "ptr" in type_text.split():
+            return 4  # pointers are addresses
+        if type_text not in _SIZE_OF_TYPE:
+            raise AsmError(f"unknown type '{type_text}'; use BYTE, WORD, DWORD or PTR")
+        return _SIZE_OF_TYPE[type_text]
+
+    def _local(self, text: str) -> None:
+        """`LOCAL name:type, buffer[10]:BYTE` right after PROC: space below EBP."""
+        if not self.procs:
+            raise AsmError("LOCAL belongs inside a PROC")
+        if self.frame is None:
+            name, number = self.procs[-1]
+            self.frame = _Frame(name, number, [], {})
+        if self.frame.started:
+            raise AsmError("LOCAL must come before the first instruction of the procedure")
+        for part in split_operands(text):
+            declared, colon, ltype = (piece.strip() for piece in part.partition(":"))
+            size = self._type_size(ltype) if colon else 4
+            match = re.fullmatch(rf"({NAME})\s*(?:\[(.+)\])?", declared)
+            if match is None:
+                raise AsmError(f"cannot read LOCAL '{part}'")
+            count = evaluate(match.group(2), self.scope, 0) if match.group(2) else 1
+            # Keep every local dword aligned, as stack slots are.
+            self.frame.local_bytes += -(-(size * count) // 4) * 4
+            self.frame.locals[match.group(1)] = (-self.frame.local_bytes, size)
+
+    def _start_frame(self) -> None:
+        """Emit the prologue before the procedure's first instruction or label."""
+        frame = self.frame
+        if frame is None or frame.started:
+            return
+        frame.started = True
+        prologue = []
+        if frame.uses_ebp:
+            prologue += ["push ebp", "mov ebp, esp"]
+            if frame.local_bytes:
+                prologue.append(f"sub esp, {hex(frame.local_bytes)}")
+        prologue += [f"push {register}" for register in frame.uses]
+        for text in prologue:
+            self.items.append(_Item(frame.line, text, proc=frame.name))
 
     def _endp(self, name: str) -> None:
         if not self.procs or self.procs[-1][0] != name:
             raise AsmError(f"ENDP for '{name}' does not match an open PROC")
         self.procs.pop()
+        self.frame = None
 
-    def _code_label(self, number: int, name: str) -> None:
+    def _code_label(self, number: int, name: str, scope_global: bool = False) -> None:
         if self.section != "code":
             raise AsmError("code labels belong in the .code section")
-        self._define(name, number)
-        self.items.append(_Item(number, name, label=True))
-        self.labels.append(name)
+        proc = self.procs[-1][0] if self.procs else None
+        if proc and not scope_global:
+            # MASM makes labels inside a PROC local to it, so procedures may reuse names.
+            if name in KEYWORDS or name in MNEMONICS:
+                raise AsmError(f"'{name}' is a reserved word and cannot be used as a name")
+            if name in self.local_labels[proc]:
+                raise AsmError(f"'{name}' is already defined in procedure '{proc}'")
+            self.local_labels[proc].add(name)
+            given, shown = f"__{proc}__{name}", f"{proc}.{name}"
+            self._start_frame()
+        else:
+            self._define(name, number)
+            given = shown = name
+        self.items.append(_Item(number, given, label=True, proc=proc))
+        self.labels.append(given)
+        self.display[given] = shown
 
     def _instruction(self, number: int, text: str) -> None:
         if self.section != "code":
             raise AsmError("instructions belong in the .code section")
-        self.items.append(_Item(number, text))
+        proc = self.procs[-1][0] if self.procs else None
+        frame = self.frame
+        self._start_frame()
+        mnemonic, _, operand = text.partition(" ")
+        if frame is not None and mnemonic == "ret":
+            # Undo the prologue, then return and remove the stack parameters (stdcall).
+            epilogue = [f"pop {register}" for register in reversed(frame.uses)]
+            if frame.uses_ebp:
+                epilogue.append("leave")
+            size = operand or (hex(4 * len(frame.params)) if frame.params else "")
+            epilogue.append(f"ret {size}".strip())
+            for line_text in epilogue:
+                self.items.append(_Item(number, line_text, proc=proc, frame=frame))
+            return
+        self.items.append(_Item(number, text, proc=proc, frame=frame))
+
+    def _invoke(self, number: int, text: str) -> None:
+        if self.section != "code":
+            raise AsmError("instructions belong in the .code section")
+        self._start_frame()
+        proc = self.procs[-1][0] if self.procs else None
+        self.items.append(_Item(number, text, proc=proc, frame=self.frame, invoke=True))
 
     # Pass 2: rewrite operands and encode
 
-    def _rewrite(self, text: str) -> str:
+    def _rewrite(self, text: str, item: _Item | None = None) -> str:
+        if item is not None and item.proc and self.local_labels.get(item.proc):
+            text = self._rename_local_labels(text, item.proc)
         mnemonic, _, operands = text.partition(" ")
         if not operands and mnemonic in self.scope.externals:
             # A routine name used as a statement, as in the course library's `exit`.
             return f"call {hex(self.scope.externals[mnemonic])}"
+        # Keystone reads a bare `movsd` as the SSE2 instruction of the same name; the
+        # explicit operands select the string instruction.
+        if text.split(" ")[-1] == "movsd" and mnemonic in (*_PREFIXES, "movsd"):
+            return text + " dword ptr es:[edi], dword ptr [esi]"
         if mnemonic in _PREFIXES or not operands:
             return text
         if (mnemonic.startswith(("j", "loop")) or mnemonic == "call") and re.search(
@@ -302,8 +450,66 @@ class _Assembler:
             raise AsmError("jumps to $+n or $-n are not supported; put a label at the target")
         operand_list = split_operands(operands)
         self._check_address_fits(mnemonic, operand_list)
-        parts = [rewrite_operand(op, self.scope, self.nasm) for op in operand_list]
+        frame = item.frame if item is not None else None
+        parts = []
+        for op in operand_list:
+            on_stack = self._frame_operand(op, frame) if frame else None
+            parts.append(on_stack or rewrite_operand(op, self.scope, self.nasm))
         return f"{mnemonic} {', '.join(parts)}"
+
+    def _rename_local_labels(self, text: str, proc: str) -> str:
+        names = self.local_labels[proc]
+        return map_unquoted(
+            text,
+            lambda part: re.sub(
+                rf"(?<![\w@?$.])({NAME})",
+                lambda m: f"__{proc}__{m.group(1)}" if m.group(1) in names else m.group(1),
+                part,
+            ),
+        )
+
+    def _frame_operand(self, op: str, frame: _Frame) -> str | None:
+        """A parameter or LOCAL variable becomes memory relative to EBP, sized by its type."""
+        variables = frame.variables
+        used = [name for name in names_in(op) if name in variables]
+        if not used:
+            return None
+        match = _FRAME_PTR_RE.match(op)
+        size_word, body = (match.group(1).lstrip("s"), match.group(2)) if match else (None, op)
+        pieces = [piece.strip() for piece in re.split(r"[\[\]]", body) if piece.strip()]
+        expr = re.sub(
+            rf"(?<![\w@?$.])({NAME})",
+            lambda m: (
+                _ebp_offset(variables[m.group(1)][0]) if m.group(1) in variables else m.group(1)
+            ),
+            "+".join(pieces),
+        )
+        expr = substitute_names(expr, self.scope.constants).replace("+-", "-").replace("++", "+")
+        size_word = size_word or SIZE_NAMES[variables[used[0]][1]]
+        return f"{size_word} ptr [{expr}]"
+
+    def _expand_invoke(self, item: _Item) -> list[str]:
+        """INVOKE pushes the arguments from last to first, then calls (stdcall: the
+        procedure removes them). ADDR of a LOCAL variable goes through EAX, as in MASM."""
+        target, *args = split_operands(item.text)
+        variables = item.frame.variables if item.frame else {}
+        out = []
+        for arg in reversed(args):
+            words = arg.split(" ", 1)
+            if words[0] == "addr" and len(words) == 2:
+                name = words[1].strip()
+                if name in variables:
+                    out += [f"lea eax, {name}", "push eax"]
+                elif name in self.scope.symbols:
+                    out.append(f"push offset {name}")
+                else:
+                    raise AsmError(f"ADDR needs a variable name, and '{name}' is not one")
+            elif REGISTER_BITS.get(arg, self.mode.bits) < self.mode.bits:
+                out += [f"movzx eax, {arg}", "push eax"]  # arguments are dwords
+            else:
+                out.append(f"push {arg}")
+        out.append(f"call {target}")
+        return out
 
     def _check_address_fits(self, mnemonic: str, operands: list[str]) -> None:
         """`lea dx, msg` and `mov dx, OFFSET msg` are the 16-bit habit; here addresses are
@@ -335,21 +541,23 @@ class _Assembler:
         for item in self.items:
             if item.label:
                 asm.append(f"{item.text}:")
-                label_index[item.text] = len(instruction_lines)
+                label_index[self.display[item.text]] = len(instruction_lines)
                 continue
             try:
-                text = self._rewrite(item.text)
+                texts = self._expand_invoke(item) if item.invoke else [item.text]
+                texts = [self._rewrite(text, item) for text in texts]
             except AsmError as error:
                 self.errors.append(AsmMessage(item.line, error.text))
                 continue
-            if _LOCATION_RE.search(map_unquoted(text, lambda p: p)):
-                # Keystone has no `$`; a hidden label right before the instruction stands in.
-                here = f"__here_{len(hidden)}"
-                hidden.append(here)
-                asm.append(f"{here}:")
-                text = map_unquoted(text, lambda part, h=here: _LOCATION_RE.sub(h, part))
-            asm.append(text)
-            instruction_lines.append(item.line)
+            for text in texts:
+                if _LOCATION_RE.search(map_unquoted(text, lambda p: p)):
+                    # Keystone has no `$`; a hidden label before the instruction stands in.
+                    here = f"__here_{len(hidden)}"
+                    hidden.append(here)
+                    asm.append(f"{here}:")
+                    text = map_unquoted(text, lambda part, h=here: _LOCATION_RE.sub(h, part))
+                asm.append(text)
+                instruction_lines.append(item.line)
 
         ks = keystone.Ks(keystone.KS_ARCH_X86, self.mode.ks_mode)
         if self.nasm:
@@ -391,7 +599,8 @@ class _Assembler:
             constants=dict(self.scope.constants),
             labels=labels,
             address_to_line=dict(zip(addresses, instruction_lines, strict=True)),
-            line_to_address={line: a for a, line in zip(addresses, instruction_lines, strict=True)},
+            # A line may stand for several instructions (INVOKE, prologues); use the first.
+            line_to_address=dict(reversed(list(zip(instruction_lines, addresses, strict=True)))),
             data_spans=dict(self.data.spans),
             warnings=self.warnings,
             mode=self.mode,
@@ -409,7 +618,7 @@ class _Assembler:
         for name in ("main", "_start"):
             if name in labels:
                 return labels[name]
-        return labels[self.labels[0]] if self.labels else base
+        return labels[self.display[self.labels[0]]] if self.labels else base
 
     def _find_line_errors(self, ks, asm, instruction_lines, labels, whole_error) -> None:
         """Assemble each instruction alone, with every label defined after it, to find all

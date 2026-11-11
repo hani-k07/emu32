@@ -23,5 +23,11 @@ First public release, for testing with course material before 1.0.
 - Windows installer (per user, no administrator rights) and a portable folder.
 - Works fully offline; the release build checks that no network connection is attempted.
 - The Screen window comes forward when a program prints.
+- Advanced procedures: `PROC USES`, stack parameters, `LOCAL`, `INVOKE`, `ADDR` and
+  `PROTO`; labels inside a procedure are local to it.
+- More library procedures: WriteBin, WriteBinB, WriteHexB, ReadDec, ReadHex, ReadKey,
+  DumpMem, Clrscr, WaitMsg, Delay, Randomize, Random32, RandomRange, IsDigit,
+  GetMseconds, ParseDecimal32, ParseInteger32 and the Str_ procedures.
+- Fixed: running again after a divide error no longer hangs; `rep movsd` assembles.
 - `lea dx, msg` and `mov dx, OFFSET msg` (16-bit habits) are reported at compile time with
   the 32-bit form to use instead.

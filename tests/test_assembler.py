@@ -236,9 +236,9 @@ end main"""
         (".code\nstr: ret", 2, "reserved word"),
         (".code\nmain proc\nret", 2, "procedure 'main' has no ENDP"),
         (".code\na proc\nret\nb endp", 4, "does not match an open PROC"),
-        (".code\nmain proc uses eax\nret\nmain endp", 2, "PROC options 'uses eax'"),
+        (".code\nmain proc uses ax\nret\nmain endp", 2, "USES needs 32-bit registers"),
         (".code\nmov ax, @data\nmov ds, ax", 2, "@data is a 16-bit segment value"),
-        (".code\ninvoke ExitProcess, 0", 2, "INVOKE is not supported"),
+        (".code\nf proc, x\nret\nf endp", 2, "needs a type"),
         (".code\n.if eax == 1", 2, ".IF is not supported"),
         (".data\nbig dq 1", 2, "64-bit data (dq) is not supported"),
         (".code\njmp $+2", 2, "jumps to $+n"),
@@ -247,7 +247,8 @@ end main"""
         (".code\nret\nend nothere", 3, "END names 'nothere'"),
         ("INCLUDE other.inc", 1, "only Irvine32.inc is recognized"),
         (".data\ns db 'it''s'", 2, "doubled quotes"),
-        (".code\nmain proc uses ebx\nret\nmain endp", 2, "save registers with PUSH and POP"),
+        (".code\nmain:\nlocal t:dword", 3, "LOCAL belongs inside a PROC"),
+        (".code\nextern helper:proc", 2, "another source file"),
     ],
 )
 def test_error_messages(source, line, text):
