@@ -537,3 +537,23 @@ While searching for this, two other risks were removed, even though neither was 
 the clean CPU context of D57 is gone (after a CPU fault the emulator now rebuilds a fresh
 Unicorn instance with the same memory and registers), and Python's cyclic garbage collector
 is paused while Unicorn executes, so no finished instance is finalized inside a hook.
+
+## D63. Design system (polish P1, 2026-11-12)
+
+Colors, spacing, radius and type come from tokens in `src/emu32/gui/theme/` (see
+`docs/design.md`). One stylesheet template is filled from the active palette, so the themes
+cannot drift apart. The old `gui/theme.py` module became the `gui/theme/` package with the
+same import path. Dark is the default; a system that reports no preference now gets dark
+instead of light. The projector palette stays as a third palette, not a user choice.
+`scripts/check_contrast.py` and a color-literal rule in `check_repo_rules.py` run in CI.
+The stylesheet sets no font sizes, so it cannot fight font zoom or projector mode.
+
+## D64. Stylesheet cost at window creation (2026-11-12)
+
+Measured before and after P1, alternating old and new code three times each on the same
+machine: opening the editor window went from 28 ms to 35 ms (+6 ms, +24%); a 1,000,000-step
+run stayed at 1.0 s in the session (no change) and 1.32 s to 1.36 s in the emulator window
+(+3%). The extra 6 ms is Qt's stylesheet engine styling each widget once when it is
+created; removing the one rule that matched every widget did not change it. The brief asks
+for one stylesheet, and 6 ms is below one screen refresh (16 ms), so this regression above
+10 percent is reported rather than removed.
