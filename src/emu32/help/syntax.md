@@ -115,6 +115,61 @@ values in.
 | `DumpRegs` | prints all registers and flags |
 | `exit` | ends the program; can be written alone as `exit` |
 | `ExitProcess` | ends the program; `push 0` then `call ExitProcess` |
+| `WriteBin` | prints EAX in binary, in groups of four bits |
+| `WriteBinB` | prints EAX in binary; EBX is the size in bytes (1, 2 or 4) |
+| `WriteHexB` | prints EAX in hex; EBX is the size in bytes (1, 2 or 4) |
+| `ReadDec` | reads an unsigned number into EAX; CF=1 and EAX=0 if it is not one |
+| `ReadHex` | reads a hex number into EAX; CF=1 and EAX=0 if it is not one |
+| `ReadKey` | takes a typed character into AL without waiting; ZF=1 if there is none |
+| `DumpMem` | prints memory: ESI = address, ECX = count, EBX = size of each item |
+| `Clrscr` | clears the Screen window |
+| `WaitMsg` | prints "Press Enter to continue..." and waits |
+| `Delay` | waits EAX milliseconds |
+| `Randomize` | starts the random numbers from the clock |
+| `Random32` | EAX = a random 32-bit number |
+| `RandomRange` | EAX = a random number from 0 to EAX - 1 |
+| `IsDigit` | ZF=1 if AL is a character from '0' to '9' |
+| `GetMseconds` | EAX = milliseconds since midnight |
+| `ParseDecimal32` | EDX = text, ECX = its length; EAX = the unsigned number, CF=1 if invalid |
+| `ParseInteger32` | the same for a signed number; OF=1 if invalid |
+| `SetTextColor`, `Gotoxy` | accepted and ignored: the Screen window is plain text |
+
+String procedures take their arguments on the stack, so call them with `INVOKE`:
+
+| Procedure | Does |
+|---|---|
+| `INVOKE Str_length, ADDR s` | EAX = length of the 0-terminated string |
+| `INVOKE Str_copy, ADDR source, ADDR target` | copies the string and its 0 |
+| `INVOKE Str_compare, ADDR a, ADDR b` | sets the flags as `CMP a, b` would: use `je`, `jb`, `ja` |
+| `INVOKE Str_ucase, ADDR s` | changes a to z into A to Z |
+| `INVOKE Str_trim, ADDR s, ' '` | removes that character from the end |
+
+## Procedures
+
+```
+AddThree PROTO, first:DWORD, second:DWORD, third:DWORD   ; optional
+
+AddThree PROC USES ebx, first:DWORD, second:DWORD, third:DWORD
+    LOCAL temp:DWORD           ; space on the stack, only inside this procedure
+    mov  eax, first
+    add  eax, second
+    mov  temp, eax
+    add  eax, third
+    ret                         ; restores EBX, removes the arguments
+AddThree ENDP
+
+    INVOKE AddThree, 1, 2, 3    ; push 3, push 2, push 1, call AddThree
+```
+
+- Parameters are at `[ebp+8]`, `[ebp+12]`, ... and LOCAL variables below EBP. emu32
+  writes the usual entry code (`push ebp`, `mov ebp, esp`, `sub esp, n`, then `push`
+  for each `USES` register) and, at each `ret`, the matching exit code ending in
+  `ret n`, which removes the arguments (the stdcall convention). Single steps show
+  these instructions on the `PROC` and `ret` lines.
+- `INVOKE name, args` pushes the arguments from last to first and calls. `ADDR x`
+  passes the address of `x`; for a LOCAL variable it uses EAX, so EAX changes.
+- Labels inside a procedure belong to that procedure, so two procedures may both use
+  `next:` or `done:`. A label with two colons (`retry::`) is visible everywhere.
 
 ## int 21h services
 
@@ -141,9 +196,9 @@ not needed and are rejected with a hint.
 
 ## Not supported
 
-`INVOKE`, `.IF` and the other high-level directives, `MACRO`, `STRUCT`, `LOCAL`,
-`PROC USES`, 64-bit and floating-point data (`DQ`, `REAL4`), and jumps to `$+n`.
-The assembler names the construct and suggests what to write instead.
+`.IF` and the other high-level directives, `MACRO`, `STRUCT`, programs split over
+several files (`EXTERN`), 64-bit and floating-point data (`DQ`, `REAL4`), and jumps
+to `$+n`. The assembler names the construct and suggests what to write instead.
 
 ## Intel/NASM style
 

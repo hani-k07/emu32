@@ -26,12 +26,12 @@ there is one, the supported form.
 | `@data`, segment register setup | remove the two lines |
 | `lea dx, msg`, `mov dx, OFFSET msg` (an address in a 16-bit register) | use the 32-bit register: `lea edx, msg` |
 | `SEGMENT`, `ENDS`, `ASSUME` | use `.data` and `.code` |
-| `INVOKE` | push the arguments and use `CALL` |
 | `.IF`, `.ELSE`, `.WHILE`, `.REPEAT` and the other high-level directives | use `CMP` and conditional jumps |
 | `MACRO`, `ENDM` | not supported |
 | `STRUCT`, `STRUC` | not supported |
-| `LOCAL` | keep variables in `.data` or on the stack |
-| `PROC` options such as `USES` or parameters | not supported; save registers with `PUSH` and `POP` |
+| `EXTERN`, `EXTERNDEF`: a program split over several source files | put every procedure in one file |
+| `PROC C` and other calling conventions | procedures always use stdcall: they remove their own arguments |
+| library procedures `WriteStackFrame`, `MsgBox`, `GetMaxXY`, `ReadFloat` and file procedures | not provided |
 | `DQ`, `QWORD`, `DT`, `TBYTE`, `REAL4`, `REAL8` | 64-bit, 80-bit and floating-point data are not supported |
 | `EQU <text>` | text constants are not supported; use a number |
 | `INCLUDE` of files other than `Irvine32.inc` | not supported |
@@ -56,3 +56,7 @@ there is one, the supported form.
   routines. Details such as how `ReadInt` reports invalid input may differ from other
   libraries: emu32 sets OF=1 and returns 0.
 - Carriage returns are not shown; a line feed starts a new line.
+- `SetTextColor` and `Gotoxy` are accepted and do nothing: the Screen window is plain
+  text without colors or cursor positions. `Clrscr` clears it.
+- `INVOKE` passes every argument as a dword. `ADDR` of a LOCAL variable goes through EAX,
+  as in MASM.
