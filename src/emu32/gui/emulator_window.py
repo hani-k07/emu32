@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, QModelIndex, Qt, QTimer
+from PySide6.QtCore import QByteArray, QModelIndex, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
     QSplitter,
     QTableView,
     QToolBar,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -37,6 +38,7 @@ from emu32.gui.cpu_view import CpuStructureWindow
 from emu32.gui.dialogs import AboutDialog, looks_like_intel, read_source
 from emu32.gui.errors import report_exception
 from emu32.gui.help_window import show_help
+from emu32.gui.icons import icon
 from emu32.gui.models import DisassemblyModel, MemoryModel
 from emu32.gui.panels import (
     AuxPanel,
@@ -151,6 +153,7 @@ class EmulatorWindow(QMainWindow):
         column = QVBoxLayout(memory)
         column.setContentsMargins(0, 0, 0, 0)
         row = QHBoxLayout()
+        row.setContentsMargins(8, 4, 8, 4)
         row.addWidget(QLabel("&Address:", buddy=self.address_box))
         row.addWidget(self.address_box)
         column.addLayout(row)
@@ -163,8 +166,11 @@ class EmulatorWindow(QMainWindow):
         ):
             box = QWidget()
             layout = QVBoxLayout(box)
-            layout.setContentsMargins(4, 4, 4, 4)
-            layout.addWidget(QLabel(f"<b>{title}</b>"))
+            layout.setContentsMargins(0, 0, 0, 0)
+            layout.setSpacing(0)
+            heading = QLabel(title)
+            heading.setObjectName("panel_title")
+            layout.addWidget(heading)
             layout.addWidget(widget)
             splitter.addWidget(box)
         splitter.setSizes([360, 330, 510])
@@ -237,7 +243,9 @@ class EmulatorWindow(QMainWindow):
     def _build_controls(self) -> None:
         top = QToolBar("Controls")
         top.setObjectName("controls")
-        self.buttons: dict[str, QPushButton] = {}
+        top.setMovable(False)
+        top.setIconSize(QSize(28, 28))
+        self.buttons: dict[str, QToolButton] = {}
         for key, label in (
             ("load", "Load"),
             ("reload", "Reload"),
@@ -246,11 +254,16 @@ class EmulatorWindow(QMainWindow):
             ("run", "Run"),
             ("stop", "Stop"),
         ):
-            button = QPushButton(label)
+            button = QToolButton()
+            button.setText(label)
+            button.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
             button.clicked.connect(self.act[key].trigger)
             button.setToolTip(f"{label} ({self.act[key].shortcut().toString()})")
             top.addWidget(button)
             self.buttons[key] = button
+            if key in ("reload", "run"):
+                top.addSeparator()
+        self.refresh_icons()
         top.addSeparator()
         self.delay = QSlider(Qt.Horizontal)
         self.delay.setRange(0, 1000)
@@ -629,6 +642,11 @@ class EmulatorWindow(QMainWindow):
         scale_fonts(self, factor)
         scale_fonts(self.cpu, factor)
 
+    def refresh_icons(self) -> None:
+        """Redraw the control icons in the current theme's colors."""
+        for key, button in self.buttons.items():
+            button.setIcon(icon("open" if key == "load" else key))
+
     def set_projector(self, on: bool) -> None:
         """Large fonts and high contrast for showing the program to a class."""
         self.projector = on
@@ -638,6 +656,7 @@ class EmulatorWindow(QMainWindow):
         else:
             theme.apply(getattr(self, "_theme_before", "dark"))
         self.source.refresh_theme()
+        self.refresh_icons()
         self._apply_scale()
         self.refresh()
 

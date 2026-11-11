@@ -155,20 +155,67 @@ def _close(p: QPainterPath) -> None:
     p.lineTo(7, 17)
 
 
-# name -> (drawing, color token)
+def _triangle(p: QPainterPath, x1: float, x2: float) -> None:
+    """A play triangle from x1 (base) to x2 (tip), 12 units tall; x2 < x1 points left."""
+    p.moveTo(x1, 6)
+    p.lineTo(x2, 12)
+    p.lineTo(x1, 18)
+    p.closeSubpath()
+
+
+def _reload(p: QPainterPath) -> None:
+    p.arcMoveTo(QRectF(5, 5, 14, 14), 90)
+    p.arcTo(QRectF(5, 5, 14, 14), 90, 270)
+
+
+def _reload_head(p: QPainterPath) -> None:
+    p.moveTo(16.5, 12)
+    p.lineTo(21.5, 12)
+    p.lineTo(19, 8.5)
+    p.closeSubpath()
+
+
+def _step(p: QPainterPath) -> None:
+    _triangle(p, 6, 15)
+    p.moveTo(18.5, 6)
+    p.lineTo(18.5, 18)
+
+
+def _step_back(p: QPainterPath) -> None:
+    _triangle(p, 18, 9)
+    p.moveTo(5.5, 6)
+    p.lineTo(5.5, 18)
+
+
+def _run(p: QPainterPath) -> None:
+    _triangle(p, 3.5, 11.5)
+    _triangle(p, 12, 20)
+
+
+def _stop(p: QPainterPath) -> None:
+    p.addRoundedRect(QRectF(6, 6, 12, 12), 2, 2)
+
+
+# name -> (outline, color token, filled part). Play-like controls are filled so they read
+# as buttons at a glance.
 _ICONS = {
-    "new": (_new, "text.primary"),
-    "open": (_open, "warn"),
-    "examples": (_examples, "syn.register"),
-    "save": (_save, "accent"),
-    "compile": (_compile, "syn.number"),
-    "emulate": (_emulate, "ok"),
-    "calculator": (_calculator, "syn.string"),
-    "converter": (_converter, "syn.string"),
-    "options": (_options, "text.primary"),
-    "help": (_help, "accent"),
-    "about": (_about, "accent"),
-    "close": (_close, "text.muted"),
+    "new": (_new, "text.primary", None),
+    "open": (_open, "warn", None),
+    "examples": (_examples, "syn.register", None),
+    "save": (_save, "accent", None),
+    "compile": (_compile, "syn.number", None),
+    "emulate": (_emulate, "ok", _emulate),
+    "calculator": (_calculator, "syn.string", None),
+    "converter": (_converter, "syn.string", None),
+    "options": (_options, "text.primary", None),
+    "help": (_help, "accent", None),
+    "about": (_about, "accent", None),
+    "close": (_close, "text.muted", None),
+    "reload": (_reload, "accent", _reload_head),
+    "step_back": (_step_back, "warn", _step_back),
+    "step": (_step, "accent", _step),
+    "run": (_run, "ok", _run),
+    "stop": (_stop, "error", _stop),
 }
 
 
@@ -178,17 +225,22 @@ def icon(name: str) -> QIcon:
 
 @cache
 def _icon(name: str, theme_name: str) -> QIcon:
-    draw, token = _ICONS[name]
-    path = QPainterPath()
-    draw(path)
+    draw, token, fill = _ICONS[name]
+    color = theme.color(token)
     pixmap = QPixmap(24 * SCALE, 24 * SCALE)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
     painter.scale(SCALE, SCALE)
-    painter.setPen(QPen(theme.color(token), 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-    painter.drawPath(path)
-    if name == "emulate":  # the play button is filled, so the main action stands out
-        painter.fillPath(path, theme.color(token))
+    painter.setPen(QPen(color, 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    for part, filled in ((draw, False), (fill, True)):
+        if part is None:
+            continue
+        path = QPainterPath()
+        part(path)
+        if filled:
+            path.setFillRule(Qt.WindingFill)
+            painter.fillPath(path, color)
+        painter.drawPath(path)
     painter.end()
     return QIcon(pixmap)

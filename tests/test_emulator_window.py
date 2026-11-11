@@ -306,3 +306,12 @@ def test_screen_comes_forward_when_the_program_prints(window, qtbot):
     finish(qtbot, window)
     qtbot.waitUntil(lambda: not window.docks["Screen"].isHidden(), timeout=2000)
     assert window.screen.output.toPlainText() == "A"
+
+
+def test_controls_have_icons_that_follow_projector_mode(window):
+    run = window.buttons["run"]
+    assert not run.icon().isNull() and run.text() == "Run"
+    before = run.icon().cacheKey()
+    window.set_projector(True)
+    assert run.icon().cacheKey() != before
+    window.set_projector(False)
