@@ -74,3 +74,11 @@ tmp/
 out/
 examples/**/*.bin
 examples/**/*.lst
+
+# Observation notes are text only; screenshots stay local.
+docs/observations/**/*.png
+docs/observations/**/*.jpg
+docs/observations/**/*.jpeg
+docs/observations/**/*.gif
+docs/observations/**/*.bmp
+docs/observations/**/*.webp

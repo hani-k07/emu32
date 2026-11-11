@@ -41,4 +41,7 @@ select = ["E", "F", "W", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Unicorn's mem_map triggers an access violation that it handles itself; on Windows the
+# faulthandler plugin still prints a "fatal exception" dump for it. See docs/decisions.md D7.
+addopts = "-p no:faulthandler"
 qt_api = "pyside6"
