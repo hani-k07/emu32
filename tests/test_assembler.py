@@ -30,10 +30,13 @@ def dword(emu, address):
 
 
 def test_sum_array_example_runs_to_the_right_answer():
-    program, emu, result = run((EXAMPLES / "sum_array.asm").read_text(encoding="utf-8"))
-    assert result.reason is StopReason.EXITED
-    assert emu.register("EAX") == 100
-    assert dword(emu, program.symbols["total"].address) == 100
+    from emu32.session import Session
+
+    session = Session()
+    program = session.load((EXAMPLES / "sum_array.asm").read_text(encoding="utf-8"))
+    assert session.run().reason is StopReason.EXITED
+    assert session.emulator.register("EAX") == 100
+    assert dword(session.emulator, program.symbols["total"].address) == 100
 
 
 # Cleaning: numbers, case, comments
