@@ -378,13 +378,14 @@ class Session:
         program = self._require()
         if not self._listing:
             base = self.mode.region("code").start
-            names = {
+            # Jump and call targets show as label or routine names instead of addresses.
+            names = {hex(address): label for label, address in program.labels.items()}
+            names |= {
                 hex(address): runtime.library_routines.DISPLAY_NAMES[name]
                 for name, address in self._externals.items()
             }
             self._listing = [
                 (insn.address, bytes(insn.bytes),
-                 # Library calls show the routine name instead of the stub address.
                  f"{insn.mnemonic} {names.get(insn.op_str, insn.op_str)}".strip(),
                  program.address_to_line.get(insn.address))
                 for insn in self._cs.disasm(program.code, base)

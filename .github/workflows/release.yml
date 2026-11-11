@@ -1,0 +1,126 @@
+name: Windows release
+
+# Every push to main that changes packaging builds and tests the release zip (no release is
+# made). A version tag (v1.2.3) does the same and publishes the zip as a GitHub release.
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths: ["packaging/**", ".github/workflows/release.yml", "src/emu32/__main__.py"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Read the version
+        id: version
+        shell: bash
+        run: |
+          version=$(python -c "import re, pathlib; print(re.search(r'__version__ = \"(.+)\"', pathlib.Path('src/emu32/__init__.py').read_text()).group(1))")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF" == refs/tags/* && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match version $version"; exit 1
+          fi
+
+      - name: Install and test
+        run: |
+          python -m pip install ".[dev]" pyinstaller
+          python -m pytest -q
+
+      - name: Build the program folder
+        run: pyinstaller --noconfirm --distpath build/dist --workpath build/work packaging/emu32.spec
+
+      - name: Self-test the program folder
+        shell: pwsh
+        run: |
+          $env:EMU32_HOME = "$env:RUNNER_TEMP\home-build"
+          $p = Start-Process build\dist\emu32\emu32.exe -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:EMU32_HOME\emu32.log"; exit 1 }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=${{ steps.version.outputs.version }}" packaging\emu32.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Install, run and uninstall for the current user
+        shell: pwsh
+        run: |
+          $setup = Start-Process build\installer\emu32-setup.exe -Wait -PassThru `
+            -ArgumentList '/VERYSILENT','/CURRENTUSER','/SUPPRESSMSGBOXES','/NORESTART','/LOG=install.log'
+          if ($setup.ExitCode -ne 0) { Get-Content install.log; exit 1 }
+          $app = "$env:LOCALAPPDATA\Programs\emu32"
+          $menu = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\emu32.lnk"
+          if (-not (Test-Path "$app\emu32.exe")) { "not installed in $app"; exit 1 }
+          if (-not (Test-Path $menu)) { "no Start Menu entry"; exit 1 }
+          $env:EMU32_HOME = "$env:RUNNER_TEMP\home-installed"
+          $run = Start-Process "$app\emu32.exe" -ArgumentList '--self-test' -Wait -PassThru
+          if ($run.ExitCode -ne 0) { Get-Content "$env:EMU32_HOME\emu32.log"; exit 1 }
+          $remove = Start-Process "$app\unins000.exe" -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { "uninstall failed"; exit 1 }
+          # The uninstaller deletes its own folder from a helper process; give it a moment.
+          for ($i = 0; $i -lt 30 -and (Test-Path $app); $i++) { Start-Sleep 1 }
+          if (Test-Path $app) { "files left in $app"; Get-ChildItem -Recurse $app; exit 1 }
+          if (Test-Path $menu) { "Start Menu entry left"; exit 1 }
+          "install, self-test and uninstall passed"
+
+      - name: Assemble the release zip
+        id: zip
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $name = "emu32-$version-windows"
+          $stage = "build\stage"
+          New-Item -ItemType Directory $stage | Out-Null
+          Copy-Item build\installer\emu32-setup.exe $stage
+          Copy-Item build\dist\emu32 "$stage\portable" -Recurse
+          Copy-Item packaging\portable.txt "$stage\portable"
+          (Get-Content packaging\README.txt -Raw).Replace('{version}', $version) | Set-Content "$stage\README.txt" -Encoding utf8
+          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md $stage
+
+          # The portable folder must work from where it is unpacked, without installing.
+          Copy-Item "$stage\portable" "$env:RUNNER_TEMP\portable-test" -Recurse
+          $p = Start-Process "$env:RUNNER_TEMP\portable-test\emu32.exe" -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\portable-test\data\emu32.log"; exit 1 }
+          if (-not (Test-Path "$env:RUNNER_TEMP\portable-test\data\emu32.log")) { "portable mode did not keep its data next to the program"; exit 1 }
+
+          Compress-Archive -Path "$stage\*" -DestinationPath "$name.zip"
+          $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          "zip=$name.zip" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+          "$name.zip  SHA-256 $hash"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.zip.outputs.zip }}
+          path: ${{ steps.zip.outputs.zip }}
+          retention-days: 14
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          cat > notes.md <<EOF
+          Download **${{ steps.zip.outputs.zip }}** (not the "Source code" archives), unzip it, and run \`emu32-setup.exe\`, or run \`portable/emu32.exe\` without installing. See README.txt in the zip.
+
+          SHA-256 of ${{ steps.zip.outputs.zip }}:
+          \`${{ steps.zip.outputs.sha256 }}\`
+
+          Changes: see [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/v$version/CHANGELOG.md).
+          EOF
+          gh release create "$GITHUB_REF_NAME" "${{ steps.zip.outputs.zip }}" --title "emu32 $version" --notes-file notes.md
