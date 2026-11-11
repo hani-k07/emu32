@@ -20,6 +20,8 @@ jobs:
     outputs:
       zip: ${{ steps.zip.outputs.zip }}
       sha256: ${{ steps.zip.outputs.sha256 }}
+      portable: ${{ steps.zip.outputs.portable }}
+      portable_sha256: ${{ steps.zip.outputs.portable_sha256 }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -79,36 +81,52 @@ jobs:
           if (Test-Path $menu) { "Start Menu entry left"; exit 1 }
           "install, self-test and uninstall passed"
 
-      - name: Assemble the release zip
+      # Two downloads (D67): the main zip holds only the installer and README.txt; the
+      # portable zip, for running without installing, is a separate download.
+      - name: Assemble the release zips
         id: zip
         shell: pwsh
         run: |
           $version = "${{ steps.version.outputs.version }}"
           $name = "emu32-$version-windows"
+          $portable = "emu32-$version-portable"
           $stage = "build\stage"
           New-Item -ItemType Directory $stage | Out-Null
           Copy-Item build\installer\emu32-setup.exe $stage
-          Copy-Item build\dist\emu32 "$stage\portable" -Recurse
-          Copy-Item packaging\portable.txt "$stage\portable"
           (Get-Content packaging\README.txt -Raw).Replace('{version}', $version) | Set-Content "$stage\README.txt" -Encoding utf8
-          Copy-Item LICENSE, THIRD_PARTY_NOTICES.md $stage
+
+          $pstage = "build\portable-stage\emu32"
+          New-Item -ItemType Directory build\portable-stage | Out-Null
+          Copy-Item build\dist\emu32 $pstage -Recurse
+          Copy-Item packaging\portable.txt, LICENSE, THIRD_PARTY_NOTICES.md $pstage
 
           # The portable folder must work from where it is unpacked, without installing.
-          Copy-Item "$stage\portable" "$env:RUNNER_TEMP\portable-test" -Recurse
+          Copy-Item $pstage "$env:RUNNER_TEMP\portable-test" -Recurse
           $p = Start-Process "$env:RUNNER_TEMP\portable-test\emu32.exe" -ArgumentList '--self-test' -Wait -PassThru
           if ($p.ExitCode -ne 0) { Get-Content "$env:RUNNER_TEMP\portable-test\data\emu32.log"; exit 1 }
           if (-not (Test-Path "$env:RUNNER_TEMP\portable-test\data\emu32.log")) { "portable mode did not keep its data next to the program"; exit 1 }
 
           Compress-Archive -Path "$stage\*" -DestinationPath "$name.zip"
+          Compress-Archive -Path $pstage -DestinationPath "$portable.zip"
           $hash = (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower()
+          $phash = (Get-FileHash "$portable.zip" -Algorithm SHA256).Hash.ToLower()
           "zip=$name.zip" >> $env:GITHUB_OUTPUT
           "sha256=$hash" >> $env:GITHUB_OUTPUT
+          "portable=$portable.zip" >> $env:GITHUB_OUTPUT
+          "portable_sha256=$phash" >> $env:GITHUB_OUTPUT
           "$name.zip  SHA-256 $hash"
+          "$portable.zip  SHA-256 $phash"
 
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.zip.outputs.zip }}
           path: ${{ steps.zip.outputs.zip }}
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.zip.outputs.portable }}
+          path: ${{ steps.zip.outputs.portable }}
           retention-days: 14
 
       - name: Publish the release
@@ -119,14 +137,17 @@ jobs:
         run: |
           version="${{ steps.version.outputs.version }}"
           cat > notes.md <<EOF
-          Download **${{ steps.zip.outputs.zip }}** (not the "Source code" archives), unzip it, and run \`emu32-setup.exe\`, or run \`portable/emu32.exe\` without installing. See README.txt in the zip.
+          Download **${{ steps.zip.outputs.zip }}**, unzip it and run \`emu32-setup.exe\`. The zip holds only the installer and README.txt. The "Source code" archives are added by GitHub to every release; students do not need them.
 
-          SHA-256 of ${{ steps.zip.outputs.zip }}:
-          \`${{ steps.zip.outputs.sha256 }}\`
+          To run without installing (for example from a USB stick), download **${{ steps.zip.outputs.portable }}** instead, unzip it and run \`emu32/emu32.exe\`.
+
+          SHA-256:
+          - ${{ steps.zip.outputs.zip }}: \`${{ steps.zip.outputs.sha256 }}\`
+          - ${{ steps.zip.outputs.portable }}: \`${{ steps.zip.outputs.portable_sha256 }}\`
 
           Changes: see [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/v$version/CHANGELOG.md).
           EOF
-          gh release create "$GITHUB_REF_NAME" "${{ steps.zip.outputs.zip }}" --title "emu32 $version" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" "${{ steps.zip.outputs.zip }}" "${{ steps.zip.outputs.portable }}" --title "emu32 $version" --notes-file notes.md
 
   # The zip as a student gets it, on other Windows machines: downloaded (marked as coming from
   # the internet), unpacked into a folder with spaces and accented letters, then run portable
@@ -143,30 +164,39 @@ jobs:
         with:
           name: ${{ needs.windows.outputs.zip }}
 
-      - name: Download the published zip like a browser would
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.windows.outputs.portable }}
+
+      - name: Download the published zips like a browser would
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          $zip = "${{ needs.windows.outputs.zip }}"
-          $url = "https://github.com/${{ github.repository }}/releases/download/$env:GITHUB_REF_NAME/$zip"
-          Remove-Item $zip
-          Invoke-WebRequest $url -OutFile $zip
-          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
-          if ($hash -ne "${{ needs.windows.outputs.sha256 }}") { "downloaded zip has a different SHA-256"; exit 1 }
-          "downloaded $url, SHA-256 matches the release notes"
+          $expected = @{ "${{ needs.windows.outputs.zip }}" = "${{ needs.windows.outputs.sha256 }}";
+                         "${{ needs.windows.outputs.portable }}" = "${{ needs.windows.outputs.portable_sha256 }}" }
+          foreach ($zip in $expected.Keys) {
+            $url = "https://github.com/${{ github.repository }}/releases/download/$env:GITHUB_REF_NAME/$zip"
+            Remove-Item $zip
+            Invoke-WebRequest $url -OutFile $zip
+            $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
+            if ($hash -ne $expected[$zip]) { "downloaded $zip has a different SHA-256"; exit 1 }
+            "downloaded $url, SHA-256 matches the release notes"
+          }
 
       - name: Unpack into an unusual folder
         id: unpack
         shell: pwsh
         run: |
-          $zip = "${{ needs.windows.outputs.zip }}"
-          # What a browser adds to a downloaded file: "this came from the internet".
-          Set-Content -Path $zip -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
           $folder = Join-Path $env:RUNNER_TEMP "T$([char]0xE9)l$([char]0xE9)chargements\emu32 test"
-          Expand-Archive $zip -DestinationPath $folder
-          foreach ($item in 'emu32-setup.exe', 'README.txt', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
-                            'portable\emu32.exe', 'portable\portable.txt') {
-            if (-not (Test-Path (Join-Path $folder $item))) { "missing in the zip: $item"; exit 1 }
+          foreach ($zip in "${{ needs.windows.outputs.zip }}", "${{ needs.windows.outputs.portable }}") {
+            # What a browser adds to a downloaded file: "this came from the internet".
+            Set-Content -Path $zip -Stream Zone.Identifier -Value "[ZoneTransfer]`r`nZoneId=3"
+            Expand-Archive $zip -DestinationPath $folder
+          }
+          $loose = ((Get-ChildItem $folder -File).Name | Sort-Object) -join ', '
+          if ($loose -ne 'emu32-setup.exe, README.txt') { "the main zip must hold only the setup and README.txt, found: $loose"; exit 1 }
+          foreach ($item in 'emu32\emu32.exe', 'emu32\portable.txt', 'emu32\LICENSE', 'emu32\THIRD_PARTY_NOTICES.md') {
+            if (-not (Test-Path (Join-Path $folder $item))) { "missing in the portable zip: $item"; exit 1 }
           }
           "folder=$folder" >> $env:GITHUB_OUTPUT
           "unpacked to $folder"
@@ -175,8 +205,8 @@ jobs:
         shell: pwsh
         run: |
           $folder = "${{ steps.unpack.outputs.folder }}"
-          $p = Start-Process (Join-Path $folder 'portable\emu32.exe') -ArgumentList '--self-test' -Wait -PassThru
-          if ($p.ExitCode -ne 0) { Get-Content (Join-Path $folder 'portable\data\emu32.log'); exit 1 }
+          $p = Start-Process (Join-Path $folder 'emu32\emu32.exe') -ArgumentList '--self-test' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { Get-Content (Join-Path $folder 'emu32\data\emu32.log'); exit 1 }
           "portable self-test passed on ${{ matrix.os }}"
 
       - name: Install into a folder with spaces, run, uninstall
@@ -190,6 +220,9 @@ jobs:
           $env:EMU32_HOME = Join-Path $env:RUNNER_TEMP 'home-verify'
           $run = Start-Process (Join-Path $target 'emu32.exe') -ArgumentList '--self-test' -Wait -PassThru
           if ($run.ExitCode -ne 0) { Get-Content "$env:EMU32_HOME\emu32.log"; exit 1 }
+          foreach ($item in 'LICENSE', 'THIRD_PARTY_NOTICES.md') {
+            if (-not (Test-Path (Join-Path $target $item))) { "$item was not installed"; exit 1 }
+          }
           $remove = Start-Process (Join-Path $target 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -Wait -PassThru
           for ($i = 0; $i -lt 30 -and (Test-Path $target); $i++) { Start-Sleep 1 }
           if ($remove.ExitCode -ne 0 -or (Test-Path $target)) { "uninstall left files behind"; exit 1 }

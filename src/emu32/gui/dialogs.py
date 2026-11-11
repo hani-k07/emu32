@@ -221,7 +221,7 @@ class OptionsDialog(QDialog):
         self.show_welcome = QCheckBox("Show the welcome window at start")
         self.show_welcome.setChecked(show_welcome)
         self.max_steps = QSpinBox()
-        self.max_steps.setRange(1000, 100_000_000)
+        self.max_steps.setRange(1000, 1_000_000_000)
         self.max_steps.setSingleStep(100_000)
         self.max_steps.setValue(max_steps)
         form = QFormLayout()

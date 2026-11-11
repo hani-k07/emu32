@@ -56,6 +56,7 @@ class RunResult:
     steps: int
     message: str = ""
     address: int | None = None
+    approximate: bool = False  # steps is a lower bound (D65)
 
 
 class EmulatorError(Exception):
@@ -88,11 +89,17 @@ _UC_ERRORS = {
 
 
 class Emulator:
-    # About 10 ms of work per chunk. The window thread gets the GIL back between chunks;
-    # with 100,000 a run starved it for a whole second (see docs/decisions.md D35).
+    # About 10 ms of work per chunk while counting. The window thread gets the GIL back
+    # between chunks; with 100,000 a run starved it for a whole second (D35).
     chunk_size = 10_000
+    # A run counts every instruction exactly for this many steps (a Python call per block,
+    # about 1 s per million). After that it drops the counting hook and runs at full speed
+    # (about 0.03 s per million); a run that then ends inside a chunk knows its count only
+    # to within that chunk. D65.
+    exact_steps = 200_000
+    fast_chunk_size = 200_000
 
-    def __init__(self, mode: CpuMode = MODE32, max_steps: int = 1_000_000) -> None:
+    def __init__(self, mode: CpuMode = MODE32, max_steps: int = 100_000_000) -> None:
         self.mode = mode
         self.max_steps = max_steps
         # Handlers for `int n`. Interrupt numbers without a handler stop the program.
@@ -126,6 +133,11 @@ class Emulator:
         self._break_hit: int | None = None
         self._recording: list[MemoryAccess] | None = None
         self._record_hooks: list[int] = []
+        self._block_hook: int | None = None
+        self._hlt_addresses: list[int] = []
+        self._halt_at: int | None = None
+        # True when total_steps is a lower bound (a fast run ended inside a chunk).
+        self.steps_approximate = False
 
     # Loading
 
@@ -139,6 +151,13 @@ class Emulator:
                 )
         self._recording = None
         self._block_starts.clear()
+        # HLT ends the program. A one-address hook on each HLT notices it in fast runs too,
+        # where no block hook is there to say how a chunk ended.
+        self._hlt_addresses = [
+            address
+            for address, _size, mnemonic, _ops in self._cs.disasm_lite(code, code_region.start)
+            if mnemonic == "hlt"
+        ]
         self._new_engine()
         uc = self.uc
         uc.mem_write(code_region.start, code)
@@ -151,6 +170,7 @@ class Emulator:
         self.set_register(mode.flags_register, mode.initial_flags)
         self.set_register(self._ip, code_region.start if entry is None else entry)
         self.total_steps = 0
+        self.steps_approximate = False
         self.exited = False
         self.exit_code = 0
         self._cpu_fault = False
@@ -163,7 +183,9 @@ class Emulator:
         uc.mem_write(self._exit, bytes([HLT]))
         # A block hook costs far less than a per-instruction hook and still gives an exact
         # instruction count when a run ends partway through a chunk.
-        uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
+        self._block_hook = uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
+        for address in self._hlt_addresses:
+            uc.hook_add(unicorn.UC_HOOK_CODE, self._on_hlt, begin=address, end=address)
         uc.hook_add(unicorn.UC_HOOK_INTR, self._on_interrupt)
         uc.hook_add(unicorn.UC_HOOK_MEM_INVALID, self._on_invalid_memory)
         self.uc = uc
@@ -272,36 +294,51 @@ class Emulator:
         self._stop_requested = False
         self._skip_break = self.register(self._ip)
         done = 0
-        while done < limit:
-            count = min(self.chunk_size, limit - done)
-            executed = self._execute(count)
-            done += executed
-            self.total_steps += executed
-            if self.on_chunk is not None:
-                self.on_chunk()
-            pc = self.register(self._ip)
-            if self._fault is not None:
-                message, address = self._fault
-                return RunResult(StopReason.ERROR, done, message, address)
-            if (
-                self._exit_requested
-                or pc == self._exit
-                or (executed < count and self._halted_before(pc))
-            ):
-                self.exited = True
-                return RunResult(StopReason.EXITED, done)
-            if self._break_hit is not None:
-                return RunResult(StopReason.BREAKPOINT, done, address=self._break_hit)
-            if self._stop_requested:
-                return RunResult(StopReason.STOPPED, done)
-        return RunResult(StopReason.LIMIT, done)
+        approximate = False
+        try:
+            while done < limit:
+                counting = done < self.exact_steps
+                if not counting and self._block_hook is not None:
+                    self.uc.hook_del(self._block_hook)  # full speed from here on
+                    self._block_hook = None
+                size = self.chunk_size if counting else self.fast_chunk_size
+                count = min(size, limit - done)
+                executed = self._execute(count, counting)
+                if executed is None:  # a fast chunk ended early: count unknown
+                    executed, approximate = 0, True
+                    self.steps_approximate = True
+                done += executed
+                self.total_steps += executed
+                if self.on_chunk is not None:
+                    self.on_chunk()
+                pc = self.register(self._ip)
+                if self._fault is not None:
+                    message, address = self._fault
+                    return RunResult(StopReason.ERROR, done, message, address, approximate)
+                if self._exit_requested or pc == self._exit or self._halt_at == pc - 1:
+                    self.exited = True
+                    return RunResult(StopReason.EXITED, done, approximate=approximate)
+                if self._break_hit is not None:
+                    return RunResult(
+                        StopReason.BREAKPOINT, done, address=self._break_hit,
+                        approximate=approximate,
+                    )  # fmt: skip
+                if self._stop_requested:
+                    return RunResult(StopReason.STOPPED, done, approximate=approximate)
+            return RunResult(StopReason.LIMIT, done)
+        finally:
+            if self._block_hook is None and self.uc is not None:
+                self._block_hook = self.uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
 
-    def _execute(self, count: int) -> int:
+    def _execute(self, count: int, counting: bool = True) -> int | None:
+        """Run up to `count` instructions. Returns how many ran, or None when a chunk
+        without the counting hook ended early."""
         self._counted = 0
         self._last_block = []
         self._fault = None
         self._break_hit = None
         self._exit_requested = False
+        self._halt_at = None
         resume_at = None
         # No cyclic garbage collection while Unicorn runs: a collection started inside one
         # of our hooks could finalize, and close, another finished Unicorn instance in the
@@ -323,6 +360,14 @@ class Emulator:
         if self._cpu_fault:
             self._clear_cpu_fault()
         pc = self.register(self._ip)
+        if not counting:
+            ended_early = (
+                self._fault or self._exit_requested or self._break_hit is not None
+                or self._stop_requested or pc == self._exit or self._halt_at is not None
+            )  # fmt: skip
+            if resume_at is not None:
+                self.set_register(self._ip, resume_at)
+            return None if ended_early else count
         executed = self._counted
         # Blocks are counted when entered; drop the instructions of the last block that did
         # not complete (a fault, a stop request, or the count limit inside the block).
@@ -349,10 +394,10 @@ class Emulator:
             self.set_register(name, value)
         self._cpu_fault = False
 
-    def _halted_before(self, pc: int) -> bool:
-        return pc - 1 in self._last_block and self.read_memory(pc - 1, 1)[0] == HLT
-
     # Hooks
+
+    def _on_hlt(self, uc: unicorn.Uc, address: int, size: int, _data: object) -> None:
+        self._halt_at = address  # Unicorn stops right after the HLT itself
 
     def _on_block(self, uc: unicorn.Uc, address: int, size: int, _data: object) -> None:
         key = (address, size)
@@ -378,9 +423,13 @@ class Emulator:
             # Divide error is a fault: EIP still points at the div or idiv.
             self._fault = ("divide error: division by zero, or the result is too large", pc)
         else:
-            # Software interrupts are traps: EIP already points past the int instruction.
-            earlier = [start for start in self._last_block if start < pc]
-            address = earlier[-1] if earlier else pc
+            # Software interrupts are traps: EIP already points past the int instruction
+            # (CD ib, or the one-byte INT3 / INTO / INT1).
+            address = pc
+            if self.read_memory(pc - 2, 1)[0] == 0xCD:
+                address = pc - 2
+            elif self.read_memory(pc - 1, 1)[0] in (0xCC, 0xCE, 0xF1):
+                address = pc - 1
             self._fault = (f"interrupt {number:02X}h is not supported", address)
         uc.emu_stop()
 

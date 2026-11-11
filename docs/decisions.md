@@ -557,3 +557,43 @@ run stayed at 1.0 s in the session (no change) and 1.32 s to 1.36 s in the emula
 created; removing the one rule that matched every widget did not change it. The brief asks
 for one stylesheet, and 6 ms is below one screen refresh (16 ms), so this regression above
 10 percent is reported rather than removed.
+
+## D65. Run limit and a fast run (2026-11-12)
+
+The spec's default limit of 1,000,000 instructions stopped a student's ordinary program: a
+countdown with a 5,000,000-iteration delay loop runs about 50 million instructions. The
+default is now 100,000,000 (deviation from spec 7.1; Stop still works at any time).
+
+Counting every instruction needs a Python callback per basic block, about 1 microsecond
+each, which made such a run take over a minute. A run now counts exactly for the first
+200,000 instructions, then removes the block hook and lets Unicorn run in chunks of 200,000
+with no Python code in between. Breakpoints and `hlt` use hooks on their own addresses
+only, so they still stop at the right place. When a run ends inside an uncounted chunk
+(exit, fault, breakpoint, Stop), the count is a lower bound and the status bar says "at
+least N instructions". Single steps and step-back are unchanged and always exact. The
+student's program now finishes in about 2 seconds.
+
+## D66. Emulator window refresh (2026-11-12)
+
+The window took about 140 ms to refresh after each step or chunk, which felt laggy. The
+disassembly table sized its columns to the contents, which read every row on each refresh;
+the memory model compared 65,536 bytes into a set on each refresh; and each table cell
+looked up Qt role enums in `data()`. Columns now get fixed widths from the font (never
+narrower than the header label), the memory comparison is done lazily per visible row, and
+the role constants are read once. A refresh including repaint now takes about 36 ms.
+Tables alternate row colors and the register table is never narrower than its columns, so
+High and Low are not cut off.
+
+## D67. Two release downloads (2026-11-12)
+
+Spec section 11 puts the installer, a `portable/` folder, the README and the licenses into
+one zip. The owner asked for a download that looks like a classic setup: just the installer
+and a README. The main zip `emu32-<version>-windows.zip` now holds only `emu32-setup.exe`
+and `README.txt`. `LICENSE` and `THIRD_PARTY_NOTICES.md` are installed with the program
+(GPL notices still reach every user), and the portable program is a second download,
+`emu32-<version>-portable.zip`, with the licenses inside its folder. The "Source code"
+archives on a release page are added by GitHub itself and cannot be removed.
+
+The ASCII codes window also changed: all 256 codes fit on one screen as 8 columns of 32
+("dec hex char"), control codes in the accent color, and the selected code is shown in
+every base below the grid.

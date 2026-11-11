@@ -69,13 +69,14 @@ class Outcome:
     message: str = ""
     line: int | None = None
     trace: TraceRecord | None = None
+    approximate: bool = False  # steps is a lower bound (a long fast run)
 
 
 class Session:
     def __init__(
         self,
         mode: CpuMode = MODE32,
-        max_steps: int = 1_000_000,
+        max_steps: int = 100_000_000,
         history_limit: int = DEFAULT_LIMIT,
     ) -> None:
         self.mode = mode
@@ -350,7 +351,7 @@ class Session:
             message = f"stopped at line {here}" if here else "stopped"
         else:
             message = result.message
-        return Outcome(reason, result.steps, message, here, record)
+        return Outcome(reason, result.steps, message, here, record, result.approximate)
 
     # State for the window. Call these only while holding `lock`, or when idle.
 

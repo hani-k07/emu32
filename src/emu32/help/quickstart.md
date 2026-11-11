@@ -56,7 +56,7 @@ steps only, up to the last 10,000. Run clears this history.
 - **Esc** (Stop) stops a running program, for example an endless loop.
 - The **Step delay** slider runs one instruction at a time with a pause, so you
   can watch the program work. At 0 ms, Run goes at full speed.
-- Run stops after one million instructions, so an endless loop cannot hang the
+- Run stops after 100 million instructions, so an endless loop cannot hang the
   program. Change this limit in the editor's Options.
 
 ## 6. Breakpoints

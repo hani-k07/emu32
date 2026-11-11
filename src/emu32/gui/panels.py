@@ -40,6 +40,11 @@ def fixed_font():
     return QFontDatabase.systemFont(QFontDatabase.FixedFont)
 
 
+def count_text(steps: int, approximate: bool) -> str:
+    """Long runs skip exact counting, so their count is a lower bound (D65)."""
+    return f"at least {steps:,}" if approximate else f"{steps:,}"
+
+
 def make_table(headers: list[str], rows: int = 0) -> QTableWidget:
     table = QTableWidget(rows, len(headers))
     table.setHorizontalHeaderLabels(headers)
@@ -48,9 +53,29 @@ def make_table(headers: list[str], rows: int = 0) -> QTableWidget:
     table.setEditTriggers(QAbstractItemView.NoEditTriggers)
     table.setSelectionBehavior(QAbstractItemView.SelectRows)
     table.setFont(fixed_font())
+    table.setAlternatingRowColors(True)
     table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
     table.horizontalHeader().setStretchLastSection(True)
     return table
+
+
+def fit_columns(view: QAbstractItemView, widths_in_chars: list[int]) -> int:
+    """Set column widths from the font instead of measuring the contents, which would
+    read every row on each refresh. Returns the total width, for a minimum panel width."""
+    header = view.horizontalHeader()
+    header.setSectionResizeMode(QHeaderView.Interactive)
+    header.setStretchLastSection(True)
+    char = view.fontMetrics().horizontalAdvance("0")
+    header_metrics = header.fontMetrics()
+    model = view.model()
+    total = 0
+    for column, chars in enumerate(widths_in_chars):
+        # Never narrower than the header label, so titles such as "Register" are not cut.
+        title = str(model.headerData(column, Qt.Horizontal) or "")
+        width = max(char * chars, header_metrics.horizontalAdvance(title)) + 20
+        view.setColumnWidth(column, width)
+        total += width
+    return total + view.verticalScrollBar().sizeHint().width() + 4
 
 
 def set_row(table: QTableWidget, row: int, values: list[str], changed: bool = False) -> None:
@@ -73,6 +98,9 @@ class RegistersPanel(QWidget):
             ["", "Register", "Value", "16-bit", "High", "Low"], len(mode.registers)
         )
         self.table.setToolTip("Double-click a register to change it while the program is paused.")
+        # Never narrower than its columns, so High and Low are not cut off.
+        self.table.setMinimumWidth(fit_columns(self.table, [1, 6, 8, 4, 2, 2]))
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.table.cellDoubleClicked.connect(
             lambda row, _c: self.edit_requested.emit(self.mode.registers[row])
         )
@@ -257,8 +285,8 @@ class AuxPanel(QWidget):
         layout.addWidget(self.trace)
         layout.addWidget(note)
 
-    def refresh(self, steps: int, records, format_address) -> None:
-        self.counter.setText(f"Instructions executed: {steps:,}")
+    def refresh(self, steps: int, records, format_address, approximate: bool = False) -> None:
+        self.counter.setText(f"Instructions executed: {count_text(steps, approximate)}")
         lines = [
             f"{format_address(r.address)}  {r.text:<28} line {r.line if r.line else '-'}"
             for r in records
