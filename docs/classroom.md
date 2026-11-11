@@ -2,14 +2,12 @@
 
 ## Putting emu32 on lab PCs
 
-Download `emu32-<version>-windows.zip` from the
-[releases page](https://github.com/hani-k07/emu32/releases). It contains:
+The [releases page](https://github.com/hani-k07/emu32/releases) has two downloads:
 
-| Item | Use |
+| Download | Contents and use |
 |---|---|
-| `emu32-setup.exe` | Installer. Installs for the current user without administrator rights. Run it as administrator to choose "all users" instead. |
-| `portable/` | The program without installation. Copy the folder anywhere and run `emu32.exe`. |
-| `README.txt`, `LICENSE`, `THIRD_PARTY_NOTICES.md` | Short instructions and licenses. |
+| `emu32-<version>-windows.zip` | `emu32-setup.exe` and `README.txt`. The installer installs for the current user without administrator rights; run it as administrator to choose "all users" instead. `LICENSE` and `THIRD_PARTY_NOTICES.md` are installed with the program. |
+| `emu32-<version>-portable.zip` | An `emu32` folder with the program, for use without installation. Copy the folder anywhere and run `emu32.exe`. |
 
 Ways to deploy:
 
@@ -18,7 +16,7 @@ Ways to deploy:
   `emu32-setup.exe /VERYSILENT /CURRENTUSER`.
 - **Installer for all users**: run as administrator, choose "Install for all users", or
   `emu32-setup.exe /VERYSILENT /ALLUSERS`.
-- **USB stick or shared folder**: copy the `portable` folder. Its `portable.txt` file
+- **USB stick or shared folder**: unzip the portable zip and copy its `emu32` folder. Its `portable.txt` file
   keeps settings, the log and autosaved work in a `data` folder next to `emu32.exe`. On a
   read-only share it falls back to each user's own profile automatically.
 
@@ -36,7 +34,7 @@ without administrator rights and without network access:
    5 in the Screen window and press Enter. Expect `Factorial: 120`.
 4. Close emu32. Open Settings > Apps, find emu32, and uninstall it. Expect the program
    folder (`%LOCALAPPDATA%\Programs\emu32`) and the Start Menu entry to be gone.
-5. Copy the `portable` folder to a USB stick, run `emu32.exe` from there, and repeat
+5. Copy the `emu32` folder from the portable zip to a USB stick, run `emu32.exe` from there, and repeat
    step 3.
 
 The release build runs the same checks automatically (silent install for the current user,
@@ -74,4 +72,4 @@ time with a message that names it.
 Open an issue at https://github.com/hani-k07/emu32/issues with the emu32 version (Help >
 About), the program that shows the problem, and what you expected. If emu32 showed an
 error message, include the details from its "Copy details" button; the full log is in
-`%APPDATA%\emu32\emu32.log` (or `data\emu32.log` in the portable folder).
+`%APPDATA%\emu32\emu32.log` (or `data\emu32.log` in the portable `emu32` folder).

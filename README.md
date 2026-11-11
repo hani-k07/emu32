@@ -28,11 +28,12 @@ Download ZIP** button gives the source code, not the program.
    code" archives; those are not the program.)
 3. Unzip it and run **`emu32-setup.exe`**. No administrator rights are needed.
 
-To run without installing, open the `portable` folder from the zip and run `emu32.exe`.
-This also works from a USB stick.
+The zip holds only `emu32-setup.exe` and `README.txt`. To run without installing (for
+example from a USB stick), download **`emu32-<version>-portable.zip`** from the same page,
+unzip it and run `emu32\emu32.exe`.
 
 The program is not signed, so Windows may show "Windows protected your PC". Click
-**More info**, then **Run anyway**. The SHA-256 checksum of the zip is in the release notes.
+**More info**, then **Run anyway**. The SHA-256 checksums of both zips are in the release notes.
 
 The Windows build works fully offline: emu32 makes no network connections, sends no usage
 data and does not check for updates. Besides emu32's own open-source code it contains the
@@ -83,7 +84,7 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
   [docs/differences.md](docs/differences.md) lists everything emu32 does differently.
 - Step back covers the last 10,000 single steps; Run clears it. The trace window lists
   single steps only.
-- Run stops after one million instructions by default (changeable in Options).
+- Run stops after 100 million instructions by default (changeable in Options).
 
 ## For instructors
 
