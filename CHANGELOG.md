@@ -4,7 +4,9 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
-## Unreleased
+## 0.10.0 (2026-11-12)
+
+Runs the MASM programs written for Visual Studio courses with the Irvine32 library.
 
 - MASM course features: macros (with mWrite and the other course macros built in),
   `.IF`/`.ELSEIF`/`.ELSE`, `.WHILE`, `.REPEAT`/`.UNTIL`, `.BREAK`/`.CONTINUE`, `STRUCT`,
