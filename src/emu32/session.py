@@ -93,6 +93,12 @@ class Session:
         self._cs = capstone.Cs(capstone.CS_ARCH_X86, mode.cs_mode)
         self._cs.detail = True
         self._stop_event = threading.Event()
+        # Held while the engine runs. The window reads state only when it can take the lock;
+        # otherwise it shows `live`, a snapshot published between chunks of a run.
+        self.lock = threading.RLock()
+        self.live: tuple[dict[str, int], int] = ({}, 0)
+        self.emulator.on_chunk = self._publish
+        self._listing: list[tuple[int, bytes, str, int | None]] = []
 
     @property
     def max_steps(self) -> int:
@@ -138,7 +144,10 @@ class Session:
         self.console.clear()
         self.history.clear()
         self.trace.clear()
-        self.emulator.load(program.code, program.data, program.entry)
+        with self.lock:
+            self.emulator.load(program.code, program.data, program.entry)
+        self._listing = []
+        self._publish()
 
     def _require(self) -> Program:
         if self.program is None:
@@ -192,6 +201,12 @@ class Session:
     # Execution
 
     def step(self) -> Outcome:
+        with self.lock:
+            outcome = self._step()
+        self._publish()
+        return outcome
+
+    def _step(self) -> Outcome:
         self._require()
         emu, ip = self.emulator, self.mode.instruction_pointer
         before = emu.registers()
@@ -227,6 +242,12 @@ class Session:
         return self._outcome(result, record)
 
     def step_over(self) -> Outcome:
+        with self.lock:
+            outcome = self._step_over()
+        self._publish()
+        return outcome
+
+    def _step_over(self) -> Outcome:
         """Like step, but a CALL runs until it returns."""
         self._require()
         emu = self.emulator
@@ -259,6 +280,12 @@ class Session:
         return outcome
 
     def run(self) -> Outcome:
+        with self.lock:
+            outcome = self._run()
+        self._publish()
+        return outcome
+
+    def _run(self) -> Outcome:
         """Run until a breakpoint, the end, an error, Stop or the step limit. Clears the
         step-back history, which covers single steps only."""
         self._require()
@@ -324,6 +351,57 @@ class Session:
         else:
             message = result.message
         return Outcome(reason, result.steps, message, here, record)
+
+    # State for the window. Call these only while holding `lock`, or when idle.
+
+    def _publish(self) -> None:
+        self.live = (self.emulator.registers(), self.emulator.total_steps)
+
+    def set_register(self, name: str, value: int) -> None:
+        """Change a register while paused (the window's register editor)."""
+        with self.lock:
+            self.emulator.set_register(name, value)
+        self._publish()
+
+    def read_bytes(self, start: int, length: int) -> list[int | None]:
+        """Bytes in [start, start+length); None where no memory is mapped."""
+        out: list[int | None] = [None] * length
+        for region in self.mode.regions:
+            low, high = max(start, region.start), min(start + length, region.end)
+            if low < high:
+                data = self.emulator.read_memory(low, high - low)
+                out[low - start : high - start] = list(data)
+        return out
+
+    def listing(self) -> list[tuple[int, bytes, str, int | None]]:
+        """The program's instructions: (address, bytes, text, source line)."""
+        program = self._require()
+        if not self._listing:
+            base = self.mode.region("code").start
+            names = {
+                hex(address): runtime.library_routines.DISPLAY_NAMES[name]
+                for name, address in self._externals.items()
+            }
+            self._listing = [
+                (insn.address, bytes(insn.bytes),
+                 # Library calls show the routine name instead of the stub address.
+                 f"{insn.mnemonic} {names.get(insn.op_str, insn.op_str)}".strip(),
+                 program.address_to_line.get(insn.address))
+                for insn in self._cs.disasm(program.code, base)
+            ]  # fmt: skip
+        return self._listing
+
+    def disassemble(self, address: int, count: int) -> list[tuple[int, bytes, str]]:
+        """Decode up to `count` instructions from `address` (for code outside the program,
+        such as a library stub)."""
+        region = next((r for r in self.mode.regions if r.contains(address)), None)
+        if region is None:
+            return []
+        data = self.emulator.read_memory(address, min(count * 15, region.end - address))
+        return [
+            (insn.address, bytes(insn.bytes), f"{insn.mnemonic} {insn.op_str}".strip())
+            for insn in self._cs.disasm(data, address, count)
+        ]
 
     # Decoding and trace details
 
