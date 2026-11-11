@@ -102,6 +102,28 @@ def text_problems(text: str) -> list[tuple[int, str]]:
     return problems
 
 
+# Colors belong to the theme tokens (src/emu32/gui/theme/); other GUI code names a token.
+GUI_CODE = "src/emu32/gui/"
+THEME_CODE = "src/emu32/gui/theme/"
+COLOR_LITERAL = re.compile(
+    r"""["']#[0-9a-fA-F]{3,8}["']"""
+    r"""|QColor\(\s*["'][a-zA-Z]+["']"""
+    r"""|QColor\(\s*\d+\s*,"""
+    r"""|\bQt\.(?:white|black|red|darkRed|green|darkGreen|blue|darkBlue|cyan|darkCyan"""
+    r"""|magenta|darkMagenta|yellow|darkYellow|gray|darkGray|lightGray)\b"""
+    r"""|\b(?:color|background(?:-color)?)\s*:\s*(?:#[0-9a-fA-F]{3,8}|rgba?\(|"""
+    r"""(?:white|black|red|green|blue|yellow|orange|purple|gray|grey)\b)"""
+)
+
+
+def color_literals(text: str) -> list[tuple[int, str]]:
+    return [
+        (number, f"color literal {match.group(0)!r}; use a theme token")
+        for number, line in enumerate(text.splitlines(), start=1)
+        if (match := COLOR_LITERAL.search(line))
+    ]
+
+
 def git(*args: str) -> str:
     return subprocess.run(
         ["git", *args], cwd=ROOT, check=True, capture_output=True, text=True, encoding="utf-8"
@@ -121,6 +143,8 @@ def check_tree() -> list[str]:
         except (UnicodeDecodeError, FileNotFoundError):
             continue
         errors += [f"{path}:{n}: {why}" for n, why in text_problems(text)]
+        if path.startswith(GUI_CODE) and not path.startswith(THEME_CODE):
+            errors += [f"{path}:{n}: {why}" for n, why in color_literals(text)]
     for entry in git("log", "--format=%h%x01%B%x00").split("\0"):
         if not entry.strip():
             continue
