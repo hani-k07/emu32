@@ -26,15 +26,14 @@ there is one, the supported form.
 | `@data`, segment register setup | remove the two lines |
 | `lea dx, msg`, `mov dx, OFFSET msg` (an address in a 16-bit register) | use the 32-bit register: `lea edx, msg` |
 | `SEGMENT`, `ENDS`, `ASSUME` | use `.data` and `.code` |
-| `.IF`, `.ELSE`, `.WHILE`, `.REPEAT` and the other high-level directives | use `CMP` and conditional jumps |
-| `MACRO`, `ENDM` | not supported |
-| `STRUCT`, `STRUC` | not supported |
+| `.UNTILCXZ` with a condition | use `.UNTIL` |
+| conditional assembly: `IF`, `IFDEF`, `REPT`, `FOR`, `FORC`, `WHILE` (without the dot), `EXITM` | not supported |
+| nested `STRUCT` fields and `UNION` | use BYTE, WORD, DWORD or QWORD fields |
 | `EXTERN`, `EXTERNDEF`: a program split over several source files | put every procedure in one file |
 | `PROC C` and other calling conventions | procedures always use stdcall: they remove their own arguments |
 | library procedures `WriteStackFrame`, `MsgBox`, `GetMaxXY`, `ReadFloat` and file procedures | not provided |
-| `DQ`, `QWORD`, `DT`, `TBYTE`, `REAL4`, `REAL8` | 64-bit, 80-bit and floating-point data are not supported |
-| `EQU <text>` | text constants are not supported; use a number |
-| `INCLUDE` of files other than `Irvine32.inc` | not supported |
+| `DT`, `TBYTE`, `REAL4`, `REAL8` | 80-bit and floating-point data are not supported |
+| `INCLUDE` of files other than `Irvine32.inc` and `Macros.inc` | not supported |
 | jumps to `$+n` or `$-n` | put a label at the target (`jmp $` alone works) |
 | non-ASCII characters in strings | not supported |
 | doubled quotes inside a string (`'it''s'`) | use the other quote character: `"it's"` |

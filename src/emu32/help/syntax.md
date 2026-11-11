@@ -194,11 +194,76 @@ Put the function number in AH, then write `int 21h`.
 Memory is flat: there are no segments, so `mov ax, @data` and `mov ds, ax` are
 not needed and are rejected with a hint.
 
+## Decision directives
+
+MASM writes the compares and jumps for you:
+
+```
+.IF eax > 5 && eax < 10
+    mWrite "between"
+.ELSEIF eax == 5
+    mWrite "five"
+.ELSE
+    mWrite "outside"
+.ENDIF
+
+.WHILE ecx < 5          ; also .REPEAT ... .UNTIL condition
+    inc ecx
+    .BREAK .IF ecx == 3 ; .CONTINUE .IF works the same way
+.ENDW
+```
+
+Operators: `==` `!=` `<` `<=` `>` `>=`, `&&` `||` `!` and parentheses, and the
+flags `CARRY?` `ZERO?` `SIGN?` `OVERFLOW?` `PARITY?`. A compare is signed when an
+operand is a signed variable (`SDWORD`, `SWORD`, `SBYTE`) or uses `SDWORD PTR`;
+registers and other variables compare unsigned, as in MASM.
+
+## Macros
+
+```
+mPrint MACRO value, times:=<1>   ; a default value; value:REQ makes it required
+    LOCAL again                  ; a label that is new in each use
+    mov ecx, times
+again:
+    mWrite value
+    loop again
+ENDM
+```
+
+The course macros `mWrite`, `mWriteLn`, `mWriteString`, `mWriteSpace`,
+`mReadString`, `mGotoxy` and `mDumpMem` are built in; `INCLUDE Macros.inc` is
+accepted and not needed. `name TEXTEQU <text>` and `name EQU <text>` replace a name
+with text.
+
+## Structures
+
+```
+Employee STRUCT
+    Id     BYTE "000000000"
+    Years  WORD 0
+    Salary DWORD 0
+Employee ENDS
+
+.data
+worker Employee <"555223333", 5, 45000>
+team   Employee 3 DUP(<>)
+```
+
+Use `worker.Salary`, `(Employee PTR [esi]).Years`, `Employee.Years` (the field
+offset), `SIZEOF Employee` and `TYPE team`.
+
+## More data directives
+
+`QWORD` (or `DQ`) holds 64-bit values; read them a dword at a time with
+`DWORD PTR big` and `DWORD PTR big + 4`. `name LABEL type` gives the data that
+follows a second name and size. `ALIGN 4` pads the data to a multiple of 4.
+Anonymous labels: `@@:` with `jmp @F` (the next one) and `jmp @B` (the previous one).
+
 ## Not supported
 
-`.IF` and the other high-level directives, `MACRO`, `STRUCT`, programs split over
-several files (`EXTERN`), 64-bit and floating-point data (`DQ`, `REAL4`), and jumps
-to `$+n`. The assembler names the construct and suggests what to write instead.
+Programs split over several files (`EXTERN`), floating-point data (`REAL4`),
+conditional assembly (`IF`, `REPT`, `FOR`), and jumps to `$+n`. The assembler names
+the construct and suggests what to write instead.
 
 ## Intel/NASM style
 

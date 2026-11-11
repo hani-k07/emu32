@@ -19,7 +19,7 @@ _NAME_RE = re.compile(rf"(?<![\w@?$.]){NAME}")
 _OPERATOR_RE = re.compile(rf"(?<![\w@?$])(offset|sizeof|lengthof|type)\s+({NAME})")
 _LOCATION_RE = re.compile(r"(?<![\w@?$])\$(?![\w@?$])")
 _QUOTED_RE = re.compile(r"'([^']*)'|\"([^\"]*)\"")
-_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword)\s+ptr\s+(.*)$")
+_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword|qword)\s+ptr\s+(.*)$")
 _SIGNED_PTR_RE = re.compile(r"\bs(byte|word|dword)\s+ptr\b")
 
 REGISTER_BITS = {
@@ -28,8 +28,10 @@ REGISTER_BITS = {
     **dict.fromkeys(("al", "ah", "bl", "bh", "cl", "ch", "dl", "dh"), 8),
     **dict.fromkeys(("cs", "ds", "es", "fs", "gs", "ss"), 16),
 }
-SIZE_NAMES = {1: "byte", 2: "word", 4: "dword"}
-KEYWORDS = frozenset(REGISTER_BITS) | {"ptr", "byte", "word", "dword", "short", "near", "far"}
+SIZE_NAMES = {1: "byte", 2: "word", 4: "dword", 8: "qword"}
+KEYWORDS = frozenset(REGISTER_BITS) | {
+    "ptr", "byte", "word", "dword", "qword", "short", "near", "far",
+}  # fmt: skip
 
 _BINARY_OPS = {
     ast.Add: operator.add,
@@ -49,10 +51,13 @@ class Symbol:
     size: int  # bytes per element
     count: int  # elements on the defining line (LENGTHOF)
     signed: bool = False
+    kind: str = ""  # the STRUCT name, for a structure variable
 
     @property
     def type_name(self) -> str:
-        return ("s" if self.signed else "") + SIZE_NAMES[self.size]
+        if self.kind:
+            return self.kind
+        return ("s" if self.signed else "") + SIZE_NAMES.get(self.size, f"{self.size}-byte")
 
 
 @dataclass
@@ -178,6 +183,7 @@ def rewrite_operand(text: str, scope: Scope, nasm: bool) -> str:
     match = _PTR_RE.match(op)
     size_word, body = (match.group(1), match.group(2)) if match else (None, op)
     pieces = [piece.strip() for piece in re.split(r"[\[\]]", body) if piece.strip()]
-    expr = substitute_names("+".join(pieces), addresses).replace("+-", "-")
-    size_word = size_word or SIZE_NAMES[scope.symbols[used[0]].size]
-    return f"{size_word} ptr [{expr}]"
+    expr = substitute_names("+".join(pieces), addresses)
+    expr = re.sub(r"\+\s*-", "-", re.sub(r"\+\s*\+", "+", expr))
+    size_word = size_word or SIZE_NAMES.get(scope.symbols[used[0]].size)
+    return f"{size_word} ptr [{expr}]" if size_word else f"[{expr}]"

@@ -510,7 +510,8 @@ def syntax_words() -> dict[str, frozenset[str]]:
     directives = {
         *DATA_SIZES, *RESERVE_SIZES, "dup", "equ", "proc", "endp", "end", "include",
         "includelib", "offset", "ptr", "lengthof", "sizeof", "type", "times", "section",
-        "global", "extern", "org", "option", "proto",
+        "global", "extern", "org", "option", "proto", "macro", "endm", "local", "struct",
+        "struc", "ends", "textequ", "label", "align", "even", "invoke", "addr", "uses",
     }  # fmt: skip
     return {
         "instructions": MNEMONICS,

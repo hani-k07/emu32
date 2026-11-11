@@ -627,3 +627,30 @@ run time and their licenses (from THIRD_PARTY_NOTICES.md), a copyright line for 
 the statement that emu32 is not affiliated with EMU8086, and the repository link. There is
 no registration box: emu32 is free software and has nothing to register. The copyright line
 "Copyright (C) 2026 hani-k07" is new; the repository had no copyright line before.
+
+## D71. MASM course features: macros, decision directives, STRUCT, QWORD (2026-11-12)
+
+Courses that teach 32-bit assembly use MASM in Visual Studio with the Irvine32 library.
+Ten course-style programs (tests/vs_programs) showed which common constructs emu32 rejected:
+`mWrite`, `.IF`/`.WHILE`/`.REPEAT`, `MACRO`, `STRUCT`, `QWORD`, `LABEL`, `ALIGN`, `TEXTEQU`
+and `@@` labels. They are now supported, which reverses the "not supported" entries for
+them in spec section 7 and docs/differences.md.
+
+A new stage, `assembler/masm_pre.py`, runs on the cleaned lines before pass 1 in MASM mode
+only. It expands TEXTEQU and EQU <text>, macros (parameters, `:REQ`, `:=<default>`, LOCAL,
+`&name&` inside strings, 32 levels of nesting), the decision directives (short-circuit `&&`
+and `||`, `!`, flag tests, constant conditions such as `.WHILE 1`, `.BREAK`/`.CONTINUE`
+with `.IF`), and `@@`/`@F`/`@B`. Compares are signed when an operand is a variable declared
+SBYTE/SWORD/SDWORD or uses a signed PTR, as in MASM; registers compare unsigned. Every
+generated line keeps the number of the line it came from, so errors and stepping point at
+the source line. The course macros (`mWrite`, `mWriteLn`, `mWriteString`, `mWriteSpace`,
+`mReadString`, `mGotoxy`, `mDumpMem`) are written into the same stage as ordinary macros,
+from their documented behavior.
+
+STRUCT definitions are collected by the stage and laid out by the assembler (no padding,
+as MASM's default alignment of 1), because field initializers may use constants. Variables
+of a STRUCT type, `N DUP(<>)`, `var.field`, `(Type PTR [reg]).field`, `Type.field`,
+`SIZEOF`/`TYPE` of a type are supported; nested structures and UNION are not. QWORD data is
+stored as 8 bytes; there are no 64-bit registers in 32-bit code, so it is read a dword at a
+time. `name LABEL type` and `ALIGN n` work in the data section; ALIGN in code is accepted
+and has no effect. Conditional assembly (IF, REPT, FOR) remains unsupported.

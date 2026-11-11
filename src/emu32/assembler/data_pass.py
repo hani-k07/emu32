@@ -11,12 +11,11 @@ DATA_SIZES = {
     "db": 1, "byte": 1, "sbyte": 1,
     "dw": 2, "word": 2, "sword": 2,
     "dd": 4, "dword": 4, "sdword": 4,
+    "dq": 8, "qword": 8,
 }  # fmt: skip
 RESERVE_SIZES = {"resb": 1, "resw": 2, "resd": 4}
 SIGNED = {"sbyte", "sword", "sdword"}
 UNSUPPORTED_DATA = {
-    "dq": "64-bit data (dq) is not supported; use dd",
-    "qword": "64-bit data (qword) is not supported; use dword",
     "dt": "80-bit data (dt) is not supported",
     "tbyte": "80-bit data (tbyte) is not supported",
     "real4": "floating-point data (real4) is not supported",
@@ -59,6 +58,19 @@ class DataBuilder:
         self.spans[line] = (start, len(blob))
         if name:
             self.scope.symbols[name] = Symbol(name, start, size, count, directive in SIGNED)
+
+    def define_raw(
+        self, line: int, name: str | None, blob: bytes, size: int, count: int, kind: str = ""
+    ) -> None:
+        """Bytes built elsewhere (a STRUCT variable, ALIGN padding)."""
+        start = self.here
+        if len(self.data) + len(blob) > self.limit:
+            raise AsmError(f"the data section is larger than {self.limit} bytes")
+        self.data += blob
+        if line:
+            self.spans[line] = (start, len(blob))
+        if name:
+            self.scope.symbols[name] = Symbol(name, start, size, count, False, kind)
 
     def _item(self, item: str, size: int, out: bytearray, start: int) -> int:
         """Append one initializer to out and return how many elements it holds."""
