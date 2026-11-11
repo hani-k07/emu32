@@ -57,7 +57,25 @@ DARK = Colors(
     changed="#5a4a00",
 )
 
+# Projector mode: black and white with strong accents.
+CONTRAST = Colors(
+    instruction="#5fd7ff",
+    register="#ff87ff",
+    number="#ffd75f",
+    string="#87ff87",
+    comment="#d0d0d0",
+    directive="#ff8787",
+    current_line="#3a3a00",
+    gutter="#000000",
+    gutter_text="#ffffff",
+    breakpoint="#ff5555",
+    bookmark="#5fd7ff",
+    error="#ffd75f",
+    changed="#5f00af",
+)
+
 _current = LIGHT
+_current_name = "light"
 
 
 def colors() -> Colors:
@@ -79,6 +97,21 @@ _PALETTES = {
         QPalette.ToolTipText: "#1f2328",
         QPalette.PlaceholderText: "#8a8f98",
         QPalette.Link: "#1f4fb3",
+    },
+    "contrast": {
+        QPalette.Window: "#000000",
+        QPalette.WindowText: "#ffffff",
+        QPalette.Base: "#000000",
+        QPalette.AlternateBase: "#1a1a1a",
+        QPalette.Text: "#ffffff",
+        QPalette.Button: "#1a1a1a",
+        QPalette.ButtonText: "#ffffff",
+        QPalette.Highlight: "#ffd400",
+        QPalette.HighlightedText: "#000000",
+        QPalette.ToolTipBase: "#000000",
+        QPalette.ToolTipText: "#ffffff",
+        QPalette.PlaceholderText: "#bdbdbd",
+        QPalette.Link: "#5fd7ff",
     },
     "dark": {
         QPalette.Window: "#1b1e24",
@@ -107,8 +140,9 @@ def system_theme() -> str:
 def apply(name: str) -> None:
     """Apply "light" or "dark" to the whole application. Both set every palette color, so
     the result does not depend on the system's own light or dark setting."""
-    global _current
+    global _current, _current_name
     name = name if name in _PALETTES else "light"
+    _current_name = name
     app = QApplication.instance()
     app.setStyle("Fusion")
     palette = QPalette()
@@ -119,4 +153,8 @@ def apply(name: str) -> None:
     palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#8a8f98"))
     palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor("#8a8f98"))
     app.setPalette(palette)
-    _current = DARK if name == "dark" else LIGHT
+    _current = {"dark": DARK, "contrast": CONTRAST}.get(name, LIGHT)
+
+
+def current_name() -> str:
+    return _current_name
