@@ -291,6 +291,9 @@ class _Assembler:
 
     def _rewrite(self, text: str) -> str:
         mnemonic, _, operands = text.partition(" ")
+        if not operands and mnemonic in self.scope.externals:
+            # A routine name used as a statement, as in the course library's `exit`.
+            return f"call {hex(self.scope.externals[mnemonic])}"
         if mnemonic in _PREFIXES or not operands:
             return text
         if (mnemonic.startswith(("j", "loop")) or mnemonic == "call") and re.search(
