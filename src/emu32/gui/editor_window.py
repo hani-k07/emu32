@@ -6,7 +6,7 @@ import json
 from importlib import resources
 from pathlib import Path
 
-from PySide6.QtCore import QByteArray, Qt, QTimer
+from PySide6.QtCore import QByteArray, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QDockWidget,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMenu,
     QMessageBox,
+    QTabBar,
     QTabWidget,
     QToolButton,
 )
@@ -57,6 +58,9 @@ class Document(CodeEditor):
         self.intel = intel
         self.title = title
 
+    def is_blank(self) -> bool:
+        return not self.document().isModified() and not self.toPlainText()
+
     def display_name(self) -> str:
         return self.path.name if self.path else self.title
 
@@ -72,9 +76,7 @@ class EditorWindow(QMainWindow):
         self.resize(1100, 680)
 
         self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)
         self.tabs.setMovable(True)
-        self.tabs.tabCloseRequested.connect(lambda i: self.close_tab(self.tabs.widget(i)))
         self.tabs.currentChanged.connect(self._current_changed)
         self.setCentralWidget(self.tabs)
 
@@ -221,11 +223,14 @@ class EditorWindow(QMainWindow):
         bar = self.addToolBar("Main")
         bar.setObjectName("main_toolbar")
         bar.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
+        bar.setIconSize(QSize(28, 28))
+        bar.setMovable(False)
         a = self.act
         bar.addActions([a["new"], a["open"]])
         examples = QToolButton()
         examples.setText("Examples")
         examples.setIcon(icon("examples"))
+        examples.setProperty("icon_name", "examples")
         examples.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         examples.setMenu(self.examples_menu)
         examples.setPopupMode(QToolButton.InstantPopup)
@@ -266,6 +271,11 @@ class EditorWindow(QMainWindow):
     def add_document(
         self, text: str, path: Path | None = None, intel: bool = False, title: str | None = None
     ) -> Document:
+        # A blank, unchanged start document gives way to the first real one.
+        docs = self.documents()
+        if len(docs) == 1 and docs[0].path is None and docs[0].is_blank():
+            self.tabs.removeTab(0)
+            docs[0].deleteLater()
         if title is None:
             self._untitled += 1
             title = f"untitled{self._untitled}.asm"
@@ -275,6 +285,16 @@ class EditorWindow(QMainWindow):
         doc.zoom(self.font_size - doc.font().pointSize())
         doc.document().modificationChanged.connect(lambda _m, d=doc: self._update_tab(d))
         index = self.tabs.addTab(doc, doc.display_name())
+        # A quiet close button that follows the theme, instead of the style's default.
+        close = QToolButton()
+        close.setIcon(icon("close"))
+        close.setIconSize(QSize(14, 14))
+        close.setAutoRaise(True)
+        close.setToolTip("Close")
+        close.setProperty("icon_name", "close")
+        close.setObjectName("tab_close")
+        close.clicked.connect(lambda _=False, d=doc: self.close_tab(d))
+        self.tabs.tabBar().setTabButton(index, QTabBar.RightSide, close)
         self.tabs.setCurrentIndex(index)
         self._update_tab(doc)
         doc.setFocus()
@@ -529,9 +549,9 @@ class EditorWindow(QMainWindow):
         theme.apply(name)
         for doc in self.documents():
             doc.refresh_theme()
-        for action in self.act.values():
-            if action.property("icon_name"):
-                action.setIcon(icon(action.property("icon_name")))
+        for item in [*self.act.values(), *self.findChildren(QToolButton)]:
+            if item.property("icon_name"):
+                item.setIcon(icon(item.property("icon_name")))
         if self.emulator is not None:
             self.emulator.source.refresh_theme()
             self.emulator.refresh()

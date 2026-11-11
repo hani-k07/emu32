@@ -239,3 +239,22 @@ def test_unexpected_errors_go_to_the_log(monkeypatch):
     assert "Something went wrong" in shown[0]
     log = Path(errors.log_path()).read_text(encoding="utf-8")
     assert "RuntimeError: boom" in log and "Traceback" in log
+
+
+def test_blank_start_document_gives_way_to_the_first_real_one(window, tmp_path):
+    window.add_document("")
+    path = tmp_path / "prog.asm"
+    path.write_text("mov eax, 1\n", encoding="utf-8")
+    window.open_file(path)
+    assert [d.display_name() for d in window.documents()] == ["prog.asm"]
+    window.add_document("")
+    window.current().insertPlainText("x")
+    window.add_document("")  # a blank document with typing in it stays
+    assert len(window.documents()) == 3
+
+
+def test_toolbar_icons_follow_the_theme(window):
+    before = window.act["save"].icon().cacheKey()
+    window.switch_theme("light")
+    assert window.act["save"].icon().cacheKey() != before
+    window.switch_theme("dark")

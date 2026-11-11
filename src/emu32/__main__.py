@@ -102,6 +102,8 @@ def main() -> int:
             window.open_file(path)
         if not files and not restored and settings.get_bool("show_welcome", True):
             window.show_welcome()
+        if not window.documents():
+            window.add_document("")  # ready to type, with line numbers, like a new file
 
     # After the event loop starts, so the window is on screen behind any dialog.
     QTimer.singleShot(0, start)

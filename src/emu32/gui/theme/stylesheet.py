@@ -26,6 +26,17 @@ QToolButton:hover {{ background: {bg_panel}; border-color: {border}; }}
 QToolButton:pressed, QToolButton:checked {{ background: {selection}; }}
 QToolButton:focus {{ border: 1px solid {accent}; }}
 QToolButton:disabled {{ color: {text_muted}; }}
+QToolBar QToolButton {{ min-width: 52px; padding: {s1}px {s2}px; }}
+QToolButton[popupMode="1"] {{ padding-right: 18px; }}
+QToolButton::menu-button {{
+    border: none; border-left: 1px solid transparent; width: 16px;
+    border-top-right-radius: {radius}px; border-bottom-right-radius: {radius}px;
+}}
+QToolButton::menu-button:hover {{ border-left-color: {border}; background: {bg_raised}; }}
+QToolBar QToolButton[popupMode="2"] {{ padding-right: 14px; }}
+QToolButton[popupMode="2"]::menu-indicator {{
+    subcontrol-position: right bottom; subcontrol-origin: padding; right: 2px; bottom: 4px;
+}}
 
 QPushButton {{
     background: {bg_raised}; border: 1px solid {border_control}; border-radius: {radius}px;
@@ -78,6 +89,8 @@ QTabBar::tab:selected {{
     border-top: 2px solid {accent};
 }}
 QTabBar::tab:hover {{ color: {text_primary}; }}
+QToolButton#tab_close {{ min-width: 0; padding: 1px; margin-left: {s1}px; border: none; }}
+QToolButton#tab_close:hover {{ background: {selection}; }}
 
 QTableView, QTableWidget, QListView, QListWidget, QTreeView {{
     background: {bg_base}; alternate-background-color: {bg_panel}; gridline-color: {border};
