@@ -9,12 +9,15 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QTableWidget,
+    QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
+from emu32.gui import theme
 from emu32.gui.models import char_name
-from emu32.gui.panels import fixed_font, make_table, set_row
+from emu32.gui.panels import fixed_font, make_table
 from emu32.numbers import BASES, NumberError, calculate, fits, parse, views
 
 
@@ -98,20 +101,64 @@ class ConverterDialog(QDialog):
 
 
 class AsciiDialog(QDialog):
-    """Codes 0 to 255: decimal, hex and character (code page 437 above 127)."""
+    """All 256 codes on one screen: 8 columns of 32, each cell "dec hex char".
+
+    Control codes (0 to 31, space and 127) show their name in the accent color. Selecting a
+    cell shows the code in every base below the grid.
+    """
+
+    ROWS = 32
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("ASCII codes")
-        self.table = make_table(["Dec", "Hex", "Char"], 256)
+        columns = 256 // self.ROWS
+        self.table = make_table(
+            [f"{c * self.ROWS}-{c * self.ROWS + self.ROWS - 1}" for c in range(columns)], self.ROWS
+        )
+        self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(self.table.fontMetrics().height() + 2)
+        self.table.horizontalHeader().setStretchLastSection(False)
+        self.table.setSelectionBehavior(QTableWidget.SelectItems)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
+        self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         for code in range(256):
-            set_row(self.table, code, [str(code), f"{code:02X}", char_name(code)])
-        note = QLabel("Codes 0 to 31 are control codes; 128 to 255 use code page 437.")
+            item = QTableWidgetItem(f"{code:3d} {code:02X} {char_name(code)}")
+            item.setToolTip(f"{code} = {code:02X}h = {code:08b}b = {code:o}o")
+            if code <= 32 or code == 127:
+                item.setForeground(theme.color("accent"))
+            self.table.setItem(code % self.ROWS, code // self.ROWS, item)
+        self.detail = QLabel()
+        self.detail.setFont(fixed_font())
+        self.detail.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.table.currentCellChanged.connect(
+            lambda row, column, *_: self.select(column * self.ROWS + row)
+        )
+        note = QLabel("Accent color: control codes. 128 to 255 use code page 437.")
         note.setWordWrap(True)
         layout = QVBoxLayout(self)
         layout.addWidget(self.table)
+        layout.addWidget(self.detail)
         layout.addWidget(note)
-        self.resize(320, 520)
+        self.table.setCurrentCell(65 % self.ROWS, 65 // self.ROWS)
+        # Big enough to show all 256 codes without scrolling.
+        table = self.table
+        table.setMinimumSize(
+            table.horizontalHeader().length() + 2 * table.frameWidth(),
+            table.verticalHeader().length()
+            + table.horizontalHeader().height()
+            + 2 * table.frameWidth(),
+        )
+
+    def code_at(self, code: int) -> str:
+        return self.table.item(code % self.ROWS, code // self.ROWS).text()
+
+    def select(self, code: int) -> None:
+        if 0 <= code < 256:
+            self.detail.setText(
+                f"{char_name(code)}   dec {code}   hex {code:02X}h   "
+                f"bin {code:08b}b   oct {code:o}o"
+            )
 
 
 class CalculatorDialog(QDialog):

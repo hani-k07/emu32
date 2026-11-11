@@ -39,11 +39,13 @@ def test_calculator(qtbot):
 def test_ascii_table(qtbot):
     dialog = AsciiDialog()
     qtbot.addWidget(dialog)
-    table = dialog.table
-    assert table.rowCount() == 256
-    assert [table.item(65, c).text() for c in range(3)] == ["65", "41", "A"]
-    assert table.item(0, 2).text() == "NULL"
-    assert table.item(219, 2).text() == "█"
+    assert (dialog.table.rowCount(), dialog.table.columnCount()) == (32, 8)
+    assert dialog.code_at(65) == " 65 41 A"
+    assert dialog.code_at(0) == "  0 00 NULL"
+    assert dialog.code_at(219) == "219 DB █"
+    assert "hex 41h" in dialog.detail.text()
+    dialog.table.setCurrentCell(10, 0)
+    assert dialog.detail.text().startswith("LF")
 
 
 @pytest.mark.parametrize("key", list(PAGES))
