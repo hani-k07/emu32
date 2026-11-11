@@ -597,3 +597,15 @@ archives on a release page are added by GitHub itself and cannot be removed.
 The ASCII codes window also changed: all 256 codes fit on one screen as 8 columns of 32
 ("dec hex char"), control codes in the accent color, and the selected code is shown in
 every base below the grid.
+
+## D68. Toolbar icons drawn in code (2026-11-12)
+
+The owner asked for a more professional main window with a large icon-over-label toolbar.
+The letter tiles of M5 are replaced by original line icons drawn with Qt painter paths
+(24-unit grid, 2-unit round stroke, one theme token color each; Emulate is filled so the
+main action stands out). They need no image files, no icon font and no new license, and they
+follow the theme because they are redrawn on a theme switch. Polish P2 planned the Lucide
+set; that is not needed for the toolbar now and can still be added later for other places.
+The window also opens with a blank document, so the line-number gutter is ready for typing;
+it gives way to the first file opened or created. Tab close buttons use the same icon style
+instead of the platform default.

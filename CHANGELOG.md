@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## Unreleased
+
+- New toolbar icons: original line drawings, larger, in theme colors.
+- The editor opens with a blank document ready for typing.
+
 ## 0.9.1 (2026-11-12)
 
 - Long programs run much faster: after the first 200,000 instructions a run no longer
