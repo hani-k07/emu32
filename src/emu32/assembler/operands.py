@@ -39,7 +39,15 @@ _BINARY_OPS = {
     ast.Mult: operator.mul,
     ast.FloorDiv: operator.floordiv,
     ast.Mod: operator.mod,
+    ast.BitAnd: operator.and_,
+    ast.BitOr: operator.or_,
+    ast.BitXor: operator.xor,
+    ast.LShift: operator.lshift,
+    ast.RShift: operator.rshift,
 }
+# MASM's word operators in constant expressions, as Python operators.
+_WORD_OPERATORS = {"and": "&", "or": "|", "xor": "^", "not": "~", "shl": "<<", "shr": ">>"}
+_WORD_OPERATOR_RE = re.compile(r"(?<![\w@?$])(and|or|xor|not|shl|shr)(?![\w@?$])")
 
 
 @dataclass(frozen=True)
@@ -145,9 +153,12 @@ def evaluate(text: str, scope: Scope, here: int) -> int:
     if "mod" in leftover:
         expr = re.sub(r"\bmod\b", "%", expr)
         leftover.remove("mod")
+    if set(leftover) & _WORD_OPERATORS.keys():
+        expr = _WORD_OPERATOR_RE.sub(lambda m: f" {_WORD_OPERATORS[m.group(1)]} ", expr)
+        leftover = [n for n in leftover if n not in _WORD_OPERATORS]
     if leftover:
         raise AsmError(f"unknown name '{leftover[0]}'")
-    expr = re.sub(r"(?<![\w.])0+(?=\d)", "", expr).replace("/", "//")
+    expr = re.sub(r"(?<![\w.])0+(?=\d)", "", expr).replace("/", "//").strip()
     try:
         return _eval(ast.parse(expr, mode="eval").body)
     except (SyntaxError, AsmError):
@@ -159,8 +170,10 @@ def evaluate(text: str, scope: Scope, here: int) -> int:
 def _eval(node: ast.AST) -> int:
     if isinstance(node, ast.Constant) and isinstance(node.value, int):
         return node.value
-    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd):
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.USub | ast.UAdd | ast.Invert):
         value = _eval(node.operand)
+        if isinstance(node.op, ast.Invert):
+            return ~value
         return -value if isinstance(node.op, ast.USub) else value
     if isinstance(node, ast.BinOp) and type(node.op) in _BINARY_OPS:
         return _BINARY_OPS[type(node.op)](_eval(node.left), _eval(node.right))
@@ -170,6 +183,9 @@ def _eval(node: ast.AST) -> int:
 def rewrite_operand(text: str, scope: Scope, nasm: bool) -> str:
     """Turn one source operand into text Keystone understands."""
     op = apply_operators(text, scope)
+    if "[" not in op and set(names_in(op)) & _WORD_OPERATORS.keys():
+        # `1 SHL 4` or `MASK AND 0Fh` as an immediate: work it out here.
+        return hex(evaluate(op, scope, 0) & 0xFFFFFFFF)
     op = substitute_names(op, scope.constants)
     op = _QUOTED_RE.sub(_char_value, op)
     op = _SIGNED_PTR_RE.sub(lambda m: f"{m.group(1)} ptr", op)

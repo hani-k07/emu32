@@ -94,6 +94,9 @@ _SIGNED_DECL = re.compile(
 )
 _CONSTANT_OPERAND = re.compile(r"-?0x[0-9a-f]+|'[^']*'|\"[^\"]*\"")
 _WORD = re.compile(NAME)
+_REGISTER_PTR = re.compile(
+    r"^s?(?:byte|word|dword) ptr ((?:e?[abcd]x|[abcd][hl]|e?[sd]i|e?[bs]p))$"
+)
 
 
 class PreError(Exception):
@@ -467,6 +470,8 @@ class _Pre:
         )
         if not when:
             op = _OPPOSITE[op]
+        # `SDWORD PTR ebx` only asks for a signed compare; a register needs no size.
+        left, right = (_REGISTER_PTR.sub(r"\1", side) for side in (left, right))
         self.emit(number, f"cmp {left}, {right}")
         self.emit(number, f"{(_SIGNED_JUMP if signed else _UNSIGNED_JUMP)[op]} {target}")
 

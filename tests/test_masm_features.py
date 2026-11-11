@@ -21,6 +21,10 @@ EXPECTED = {
     "p07_struct.asm": "Salary: 45000\n5\n9\n45\n103\n",
     "p09_arrays.asm": "10\n40\n3\n12\n",
     "p10_labels.asm": "12345678\n321\njumped\nglobal\n",
+    "q01_invoke.asm": "35\n",
+    "q02_multiword.asm": "0000000122C32B0674BB5736\n-1\n3456789A\n00000083\n15 19 -1\n4\n",
+    "q03_strings_lib.asm": "HELLO WORLD\nsame\n11\n+4\n",
+    "q04_locals.asm": "0 1 1 2 3 5 8 13 21 34 \nedcba\n12\n",
 }
 
 
