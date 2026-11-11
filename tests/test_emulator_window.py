@@ -315,3 +315,12 @@ def test_controls_have_icons_that_follow_projector_mode(window):
     window.set_projector(True)
     assert run.icon().cacheKey() != before
     window.set_projector(False)
+
+
+def test_memory_address_box_accepts_a_variable_name(window):
+    assert window.load_source(LOOP, title="loop.asm")
+    window.address_box.setText("&Total")
+    window.show_address()
+    address = window.session.program.symbols["total"].address
+    row = window.memory_view.selectionModel().selectedRows()[0].row()
+    assert window.memory_model.start + row == address

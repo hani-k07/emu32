@@ -20,6 +20,12 @@ EXPECTED = {
     "simple_loop.asm": ("", "1 2 3 4 5 6 7 8 9 \n"),
     "fibonacci.asm": ("", "Fibonacci numbers:\n0 1 1 2 3 5 8 13 21 34 55 89 \n"),
     "find_max.asm": ("", "Highest: +27\n"),
+    "grade_report.asm": (
+        "",
+        "91 -> A\n78 -> C\n85 -> B\n52 -> F\n67 -> D\n100 -> A\nPassed: 5 of 6\n",
+    ),
+    "employee_records.asm": ("", "Total salary: 159000\nLongest service: Chen\n"),
+    "add_64bit.asm": ("", "Result: 0000000400000000h\n"),
 }
 
 

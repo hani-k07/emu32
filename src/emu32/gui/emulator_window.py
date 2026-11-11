@@ -124,7 +124,7 @@ class EmulatorWindow(QMainWindow):
         # Widths from the font: sizing to contents would read all 65,536 rows.
         self.memory_view.setMinimumWidth(fit_columns(self.memory_view, [1, 8, 2, 3, 5]))
         self.address_box = QLineEdit(fmt(self.mode.region("data").start))
-        self.address_box.setToolTip("Address in hex. Press Enter to show it.")
+        self.address_box.setToolTip("Address in hex, or a variable name. Press Enter to show it.")
         self.disassembly_model = DisassemblyModel(fmt)
         self.disassembly_view = QTableView()
         self.disassembly_view.setModel(self.disassembly_model)
@@ -209,6 +209,9 @@ class EmulatorWindow(QMainWindow):
             "instructions": self._action(
                 "&Instruction reference", lambda: show_help(self, "instructions")
             ),
+            "visual_studio": self._action(
+                "Coming from &Visual Studio", lambda: show_help(self, "visual_studio")
+            ),
         }
         self.act["zoom_in"].setShortcuts([QKeySequence("Ctrl++"), QKeySequence("Ctrl+=")])
         upper = QAction("&Uppercase mnemonics", self)
@@ -237,7 +240,7 @@ class EmulatorWindow(QMainWindow):
             reserved = bar.addMenu(title)
             reserved.setEnabled(False)
         bar.addMenu("&Help").addActions(
-            [a["quickstart"], a["syntax"], a["instructions"], a["about"]]
+            [a["quickstart"], a["syntax"], a["instructions"], a["visual_studio"], a["about"]]
         )
 
     def _build_controls(self) -> None:
@@ -569,11 +572,20 @@ class EmulatorWindow(QMainWindow):
         self.address_box.selectAll()
 
     def show_address(self) -> None:
-        try:
-            address = int(self.address_box.text().strip().rstrip("hH"), 16)
-        except ValueError:
-            self.statusBar().showMessage("Type the address in hex, for example 00500000")
-            return
+        text = self.address_box.text().strip()
+        program = self.session.program
+        # A variable name works too, as in Visual Studio's Memory window (`arr` or `&arr`).
+        symbol = program.symbols.get(text.lstrip("&").lower()) if program else None
+        if symbol is not None:
+            address = symbol.address
+        else:
+            try:
+                address = int(text.rstrip("hH"), 16)
+            except ValueError:
+                self.statusBar().showMessage(
+                    "Type an address in hex, for example 00500000, or a variable name"
+                )
+                return
         start = self._window_for(address)
         if self.session.program is not None and not self.runner.busy:
             with self.session.lock:

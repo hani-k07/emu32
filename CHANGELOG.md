@@ -9,6 +9,9 @@ whole semester.
 - MASM course features: macros (with mWrite and the other course macros built in),
   `.IF`/`.ELSEIF`/`.ELSE`, `.WHILE`, `.REPEAT`/`.UNTIL`, `.BREAK`/`.CONTINUE`, `STRUCT`,
   `QWORD`, `LABEL`, `ALIGN`, `TEXTEQU` and `@@` labels.
+- `AND`, `OR`, `XOR`, `NOT`, `SHL`, `SHR` in constant expressions.
+- Help > Coming from Visual Studio; three new examples; the Memory address box takes a
+  variable name.
 - New toolbar icons: original line drawings, larger, in theme colors.
 - The editor opens with a blank document ready for typing.
 - Emulator window: icon controls and matching panel headings.
