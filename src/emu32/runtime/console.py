@@ -45,6 +45,13 @@ class Console:
     def output(self) -> str:
         return "".join(self._output)
 
+    def length(self) -> int:
+        return sum(len(part) for part in self._output)
+
+    def truncate(self, length: int) -> None:
+        """Drop output past `length` characters (used by step back)."""
+        self._output = [self.output()[:length]] if length else []
+
     def clear(self) -> None:
         with self._cond:
             self._output.clear()
@@ -61,10 +68,12 @@ class Console:
             self._cond.notify_all()
 
     def cancel(self) -> None:
-        """Wake a blocked read and make it raise InputCancelled."""
+        """Wake a blocked read and make it raise InputCancelled. Does nothing when no read is
+        waiting, so a Stop pressed during computation cannot cancel a later read."""
         with self._cond:
-            self._cancelled = True
-            self._cond.notify_all()
+            if self.waiting:
+                self._cancelled = True
+                self._cond.notify_all()
 
     def read_line(self) -> str:
         self._wait(lambda: "\n" in self._input)

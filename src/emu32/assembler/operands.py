@@ -90,7 +90,7 @@ def split_operands(text: str) -> list[str]:
     return [part for part in parts if part] if any(parts) else []
 
 
-def _sub_names(text: str, values: dict[str, int]) -> str:
+def substitute_names(text: str, values: dict[str, int]) -> str:
     def replace(part: str) -> str:
         return _NAME_RE.sub(
             lambda m: hex(values[m.group(0)]) if m.group(0) in values else m.group(0), part
@@ -99,7 +99,7 @@ def _sub_names(text: str, values: dict[str, int]) -> str:
     return map_unquoted(text, replace)
 
 
-def _apply_operators(text: str, scope: Scope) -> str:
+def apply_operators(text: str, scope: Scope) -> str:
     def replace(match: re.Match) -> str:
         op, name = match.groups()
         symbol = scope.symbols.get(name)
@@ -131,11 +131,11 @@ def _char_value(match: re.Match) -> str:
 
 def evaluate(text: str, scope: Scope, here: int) -> int:
     """Evaluate a constant expression. Variables stand for their address."""
-    expr = _apply_operators(text, scope)
+    expr = apply_operators(text, scope)
     expr = _QUOTED_RE.sub(_char_value, expr)
     expr = _LOCATION_RE.sub(hex(here), expr)
     values = {**scope.constants, **{n: s.address for n, s in scope.symbols.items()}}
-    expr = _sub_names(expr, values)
+    expr = substitute_names(expr, values)
     leftover = [n for n in names_in(expr) if not re.fullmatch(r"x[0-9a-f]+", n)]
     if "mod" in leftover:
         expr = re.sub(r"\bmod\b", "%", expr)
@@ -164,20 +164,20 @@ def _eval(node: ast.AST) -> int:
 
 def rewrite_operand(text: str, scope: Scope, nasm: bool) -> str:
     """Turn one source operand into text Keystone understands."""
-    op = _apply_operators(text, scope)
-    op = _sub_names(op, scope.constants)
+    op = apply_operators(text, scope)
+    op = substitute_names(op, scope.constants)
     op = _QUOTED_RE.sub(_char_value, op)
     op = _SIGNED_PTR_RE.sub(lambda m: f"{m.group(1)} ptr", op)
-    op = _sub_names(op, scope.externals)
+    op = substitute_names(op, scope.externals)
     used = [name for name in names_in(op) if name in scope.symbols]
     if not used:
         return op
     addresses = {name: scope.symbols[name].address for name in used}
     if nasm:
-        return _sub_names(op, addresses)
+        return substitute_names(op, addresses)
     match = _PTR_RE.match(op)
     size_word, body = (match.group(1), match.group(2)) if match else (None, op)
     pieces = [piece.strip() for piece in re.split(r"[\[\]]", body) if piece.strip()]
-    expr = _sub_names("+".join(pieces), addresses).replace("+-", "-")
+    expr = substitute_names("+".join(pieces), addresses).replace("+-", "-")
     size_word = size_word or SIZE_NAMES[scope.symbols[used[0]].size]
     return f"{size_word} ptr [{expr}]"

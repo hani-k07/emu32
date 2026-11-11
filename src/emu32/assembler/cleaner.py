@@ -74,3 +74,8 @@ def clean(source: str) -> tuple[list[SourceLine], list[AsmMessage]]:
             )
             lines.append(SourceLine(number, text))
     return lines, errors
+
+
+def clean_expression(text: str) -> str:
+    """Lowercase and convert numbers, as for a source line (used for watch expressions)."""
+    return map_unquoted(text.strip(), lambda part: _convert_numbers(part.lower()))
