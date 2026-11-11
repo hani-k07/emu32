@@ -15,3 +15,18 @@ Development-only tools (not distributed): pytest (MIT), pytest-qt (MIT), ruff (M
 PyInstaller (GPL-2.0-or-later with bootloader exception).
 
 See `docs/decisions.md` (D1) for how these licenses combine.
+
+## Also inside the Windows release
+
+The Windows zip is built with PyInstaller and Inno Setup. Besides the packages above it
+contains:
+
+| Component | License | Notes |
+|---|---|---|
+| Python runtime | Python Software Foundation License 2.0 | the interpreter and standard library |
+| PyInstaller bootloader | GPL-2.0-or-later with the bootloader exception | `emu32.exe` itself |
+| OpenSSL 3 | Apache-2.0 | part of Python's standard library; emu32 makes no network connections |
+| libffi | MIT | used by Python's `ctypes` |
+| Mesa llvmpipe (`opengl32sw.dll`) | MIT | Qt's software OpenGL fallback |
+| Microsoft Visual C++ runtime (`vcruntime140*.dll`, `msvcp140*.dll`) | Microsoft Visual C++ Redistributable license | a Windows system library that Python and Qt need; redistributable, not open source |
+| Inno Setup installer runtime | Inno Setup License (permissive, source at https://github.com/jrsoftware/issrc) | inside `emu32-setup.exe` only |

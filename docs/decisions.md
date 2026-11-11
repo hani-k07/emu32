@@ -356,3 +356,56 @@ Division rounds toward minus infinity for negative operands; the help says so.
 
 Both windows save their size, position and panel layout on close and restore them at start
 (P2 item "persisted window layout").
+
+## D45. Control Flow Guard is off for emu32.exe (2026-11-12)
+
+The first frozen build crashed with 0xC0000409 as soon as the program was loaded. With a
+console build and faulthandler, the crash was inside `Uc.mem_map`, at the access violation
+that Unicorn normally handles itself (D7). The PyInstaller launcher is built with Control
+Flow Guard (DllCharacteristics bit 0x4000); `python.exe` is not. Unicorn recovers from that
+fault with `longjmp`, and with CFG on, Windows ends the process at that jump. Clearing the
+bit on a copy of the launcher made the self-test pass. `packaging/emu32.spec` clears it on
+every build, so the launcher matches `python.exe`.
+
+## D46. Installer (2026-11-12)
+
+Inno Setup, as section 11 asks. Its license (read from `license.txt` in the upstream
+repository) allows any use, including commercial, with the source public; conditions are
+keeping its copyright notices. It is a zlib-style license, not on the OSI list. Inno Setup is
+a build tool; only its installer runtime is inside `emu32-setup.exe`. The installer installs
+per user (`{autopf}` resolves to `%LOCALAPPDATA%\Programs`) and offers all users when run as
+administrator. It creates a Start Menu entry, an optional desktop shortcut and an optional
+`.asm` association; the association is written to the user's registry (or the machine's for
+an all-users install), which is the only place outside the install folder, app data and the
+Start Menu.
+
+## D47. Release pipeline and its checks (2026-11-12)
+
+`.github/workflows/release.yml` runs on version tags, on pushes to `main` that change
+packaging, and by hand. On a fresh Windows runner it runs the tests, builds the program
+folder, runs `emu32.exe --self-test` (assemble and run an example, open both windows
+offscreen), builds the installer, installs it silently for the current user, self-tests the
+installed copy, checks the Start Menu entry, uninstalls, and checks nothing is left. It then
+self-tests the portable folder from a fresh copy and checks it kept its data next to the
+program. Only for a tag does it publish the zip with its SHA-256 in the release notes. The
+runner is not a classroom PC; `docs/classroom.md` lists the manual check for one.
+
+## D48. Version and pip install (2026-11-12)
+
+The version is defined once, in `src/emu32/__init__.py`; `pyproject.toml` reads it, and the
+release job fails if a tag does not match it. The package is not on PyPI yet, so the README
+gives `pip install git+https://github.com/hani-k07/emu32.git`, which installs the same way;
+`pip install emu32` needs the maintainer to publish to PyPI.
+
+## D49. Portable mode and self-test (2026-11-12)
+
+A `portable.txt` file next to `emu32.exe` keeps settings, the log and autosave in a `data`
+folder there; if the folder cannot be written, the user's app-data folder is used. The
+release zip's `portable/` folder includes the file. `emu32 --self-test` exits with 0 or 1 and
+writes failures, including native crashes through faulthandler, to the log, since a
+windowed program has no console.
+
+## D50. Disassembly shows names (2026-11-12)
+
+Jump and call targets inside the program show their label (`jbe base_case`,
+`call factorial`), and library calls their routine name, instead of raw addresses.
