@@ -617,3 +617,13 @@ icon-over-label tool buttons in the same drawn icon style as the editor (D68), g
 separators: file, stepping, run and stop. The Registers, Memory and Disassembly headings use
 the same raised title strip as the dock windows, so all panels look alike. The icons are
 redrawn on theme changes and in projector mode.
+
+## D70. About dialog (2026-11-12)
+
+The owner asked for a fuller About window. It now shows the name, version and a one-line
+description, a License box (GPL-2.0-or-later, no registration, no internet), a Built with
+box listing Unicorn, Keystone, Capstone, Qt for Python and Python with the versions read at
+run time and their licenses (from THIRD_PARTY_NOTICES.md), a copyright line for the author,
+the statement that emu32 is not affiliated with EMU8086, and the repository link. There is
+no registration box: emu32 is free software and has nothing to register. The copyright line
+"Copyright (C) 2026 hani-k07" is new; the repository had no copyright line before.

@@ -105,6 +105,14 @@ QHeaderView::section {{
 QTableCornerButton::section {{ background: {bg_raised}; border: none; }}
 
 QDockWidget {{ titlebar-close-icon: none; }}
+QGroupBox {{
+    border: 1px solid {border}; border-radius: {radius}px; margin-top: {s3}px;
+    padding: {s3}px {s2}px {s2}px {s2}px;
+}}
+QGroupBox::title {{
+    subcontrol-origin: margin; left: {s3}px; padding: 0 {s1}px; color: {text_muted};
+}}
+QLabel#muted {{ color: {text_muted}; }}
 QLabel#panel_title {{
     background: {bg_raised}; padding: {s1}px {s2}px; border-bottom: 1px solid {border};
     font-weight: bold;

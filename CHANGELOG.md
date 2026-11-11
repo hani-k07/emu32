@@ -9,6 +9,7 @@ whole semester.
 - New toolbar icons: original line drawings, larger, in theme colors.
 - The editor opens with a blank document ready for typing.
 - Emulator window: icon controls and matching panel headings.
+- About window: license, the engines with their versions and licenses, and the link.
 
 ## 0.9.1 (2026-11-12)
 
