@@ -1,0 +1,4 @@
+This file makes emu32 portable: settings, the log and autosaved work are kept in the
+"data" folder next to emu32.exe instead of the user's profile. If this folder cannot be
+written (for example a read-only network share), emu32 uses the user's profile instead.
+Delete this file to always use the user's profile.
