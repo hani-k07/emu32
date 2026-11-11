@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QFontDatabase
+from PySide6.QtGui import QFontDatabase
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -54,14 +54,13 @@ def make_table(headers: list[str], rows: int = 0) -> QTableWidget:
 
 
 def set_row(table: QTableWidget, row: int, values: list[str], changed: bool = False) -> None:
-    background = QColor(theme.colors().changed) if changed else None
     for column, value in enumerate(values):
         item = table.item(row, column)
         if item is None:
             item = QTableWidgetItem()
             table.setItem(row, column, item)
         item.setText(value)
-        item.setBackground(background if background else QColor(0, 0, 0, 0))
+        item.setData(Qt.BackgroundRole, theme.color("changed") if changed else None)
 
 
 class RegistersPanel(QWidget):

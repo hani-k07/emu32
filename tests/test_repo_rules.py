@@ -56,3 +56,36 @@ def test_allowed_paths():
         ".gitignore",
     ]:
         assert not rules.path_blocked(path), path
+
+
+def test_color_literals_are_found():
+    for line in (
+        'QColor("#FF0000")',
+        "painter.setPen(QColor('white'))",
+        "QColor(255, 0, 0)",
+        "brush = Qt.red",
+        'label.setStyleSheet("color: #fff")',
+        'w.setStyleSheet("background: blue")',
+    ):
+        assert rules.color_literals(line), line
+
+
+def test_token_use_is_not_a_color_literal():
+    for line in (
+        'theme.color("accent")',
+        "pixmap.fill(Qt.transparent)",
+        'note.setStyleSheet("font-style: italic")',
+        "# the colors come from tokens",
+    ):
+        assert rules.color_literals(line) == [], line
+
+
+def test_palettes_pass_the_contrast_check():
+    spec = importlib.util.spec_from_file_location(
+        "check_contrast", Path(__file__).parent.parent / "scripts" / "check_contrast.py"
+    )
+    contrast = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(contrast)
+    assert contrast.check() == []
+    assert round(contrast.ratio("#FFFFFF", "#000000"), 1) == 21.0
+    assert round(contrast.ratio("#777777", "#FFFFFF"), 2) == 4.48

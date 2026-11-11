@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen, QPolygonF
+from PySide6.QtGui import QFont, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (
     QCheckBox,
     QHBoxLayout,
@@ -115,7 +115,7 @@ class Diagram(QWidget):
         p.setRenderHint(QPainter.Antialiasing)
         palette = self.palette()
         text = palette.text().color()
-        accent = QColor(theme.colors().instruction)
+        accent = theme.color("accent")
         fill = palette.base().color()
         active = self.view.active if self.view else frozenset()
         values = self.view.values if self.view else dict.fromkeys(REGISTERS, "")

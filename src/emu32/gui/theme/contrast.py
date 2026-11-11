@@ -1,0 +1,26 @@
+"""High-contrast palette for projector mode (main spec 8.8): black and white, strong accents."""
+
+PALETTE = {
+    "bg.base": "#000000",
+    "bg.panel": "#000000",
+    "bg.raised": "#141414",
+    "border": "#5A5A5A",
+    "border.control": "#BDBDBD",
+    "text.primary": "#FFFFFF",
+    "text.muted": "#D0D0D0",
+    "text.on-accent": "#000000",
+    "accent": "#FFD400",
+    "selection": "#3A3A00",
+    "ok": "#5CFF9D",
+    "warn": "#FFD75F",
+    "error": "#FF6B6B",
+    "changed": "#4B2A8C",
+    "current-line": "#262600",
+    "syn.instruction": "#5FD7FF",
+    "syn.register": "#FF87FF",
+    "syn.number": "#FFD75F",
+    "syn.string": "#87FF87",
+    "syn.comment": "#D0D0D0",
+    "syn.directive": "#FF8787",
+    "syn.label": "#FFFF87",
+}

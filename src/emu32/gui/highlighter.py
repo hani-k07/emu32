@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 
-from PySide6.QtGui import QColor, QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
+from PySide6.QtGui import QFont, QSyntaxHighlighter, QTextCharFormat, QTextDocument
 
 from emu32.gui import theme
 from emu32.session import syntax_words
@@ -24,19 +24,18 @@ class AsmHighlighter(QSyntaxHighlighter):
         self.refresh_colors()
 
     def refresh_colors(self) -> None:
-        c = theme.colors()
         self.formats = {}
-        for name, color, bold in (
-            ("instructions", c.instruction, True),
-            ("registers", c.register, False),
-            ("number", c.number, False),
-            ("string", c.string, False),
-            ("comment", c.comment, False),
-            ("directive", c.directive, True),
-            ("routines", c.instruction, False),
+        for name, token, bold in (
+            ("instructions", "syn.instruction", True),
+            ("registers", "syn.register", False),
+            ("number", "syn.number", False),
+            ("string", "syn.string", False),
+            ("comment", "syn.comment", False),
+            ("directive", "syn.directive", True),
+            ("routines", "syn.label", False),
         ):
             fmt = QTextCharFormat()
-            fmt.setForeground(QColor(color))
+            fmt.setForeground(theme.color(token))
             if bold:
                 fmt.setFontWeight(QFont.Bold)
             if name == "comment":

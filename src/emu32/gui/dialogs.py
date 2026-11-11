@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 
 from emu32 import __version__
 from emu32.gui.templates import TEMPLATES
+from emu32.gui.theme import CHOICES
 
 REPOSITORY = "https://github.com/hani-k07/emu32"
 AUTHOR = "hani-k07"
@@ -211,9 +212,9 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Options")
         self.theme = QComboBox()
-        self.theme.addItem("Light", "light")
-        self.theme.addItem("Dark", "dark")
-        self.theme.setCurrentIndex(1 if theme == "dark" else 0)
+        for key, label in CHOICES:
+            self.theme.addItem(label, key)
+        self.theme.setCurrentIndex(max(self.theme.findData(theme), 0))
         self.font_size = QSpinBox()
         self.font_size.setRange(6, 48)
         self.font_size.setValue(font_size)
