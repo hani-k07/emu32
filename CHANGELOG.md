@@ -4,6 +4,16 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.10.3 (2026-11-12)
+
+- Changed: the Registers panel columns are now labeled "32-bit", "Low 16", "Bits 15-8" and
+  "Bits 7-0", with a tooltip on each, so it is clear that AX, AH and AL are parts of the
+  32-bit register and not a 16-bit mode. The program was always 32-bit.
+- Fixed: the About window cut off text ("Capstone (disassembler)", the independence
+  notice) and squeezed the "Built with" list when the system font was wide.
+- New README screenshots, a security policy and ten heavier regression programs. No other
+  change to the program.
+
 ## 0.10.2 (2026-11-12)
 
 - Fixed: after Emulate, the emulator window's Run, Single step, Step back, Reload and
