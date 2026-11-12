@@ -1,19 +1,52 @@
 # emu32
 
-A desktop tool for learning 32-bit x86 (IA-32) assembly. Write a program in the editor,
-compile it, then run it one instruction at a time and watch the registers, flags, memory,
-stack, variables and screen output change.
+**Learn 32-bit x86 assembly by watching it run.**
+
+emu32 is a desktop tool for learning 32-bit x86 (IA-32) assembly. Write a program in the
+editor, compile it, then run it one instruction at a time and watch the registers, flags,
+memory, stack, variables and screen output change. Made a mistake? Step back.
 
 It runs the MASM programs written for Visual Studio courses with the Irvine32 library
 unchanged, so a course can use emu32 instead of setting up Visual Studio: no project
 settings, no linker, and a debugger that shows every register, flag and memory byte as you
-step, and can step back.
+step.
+
+[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue)](https://github.com/hani-k07/emu32/releases/latest)
+[![License: GPL v2+](https://img.shields.io/badge/license-GPL--2.0--or--later-green)](LICENSE)
+![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
 
 **[Download emu32 for Windows](https://github.com/hani-k07/emu32/releases/latest)**: open the
 latest release and download the file named `emu32-<version>-windows.zip`. The green **Code >
 Download ZIP** button gives the source code, not the program.
 
 ![The emulator window paused in an .ELSEIF: Disassembly shows the CMP and JB that MASM made from it, and Screen shows the output so far](docs/images/emulator.png)
+
+## Screenshots
+
+| Editor (light) | Editor (dark) |
+| --- | --- |
+| ![Editor with syntax coloring, line numbers and a breakpoint, light theme](docs/images/editor-light.png) | ![The same editor in the dark theme](docs/images/editor-dark.png) |
+
+| Errors with line numbers | CPU structure view |
+| --- | --- |
+| ![Two compile errors listed with line numbers and marked in the margin](docs/images/errors-dark.png) | ![Fetch, decode and execute shown on a simple CPU model](docs/images/cpu-view.png) |
+
+The debugger (dark theme), paused in the middle of a program:
+
+![Registers, memory, disassembly and source side by side, dark theme](docs/images/emulator-dark.png)
+
+## Why emu32
+
+- **See everything.** Registers, flags, memory, stack, variables and the FPU are on screen
+  while you step, and what just changed is marked.
+- **Step back.** Undo single steps, including memory and FPU state.
+- **Course programs just work.** `INCLUDE Irvine32.inc`, `INVOKE`, `.IF`/`.WHILE`, macros
+  and structures are supported; see the lists below.
+- **Nothing to configure.** Unzip and run. It works offline and sends no data.
+- **Made for teaching.** Light, dark and projector modes, plus a CPU view that shows
+  fetch, decode and execute.
+
+## Features
 
 **Visual Studio / Irvine32 programs**
 
