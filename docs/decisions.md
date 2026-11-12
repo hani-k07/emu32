@@ -720,3 +720,11 @@ Known difference: the cleaner reads everything outside quotes without case, so t
 angle brackets loses its case (`FORC c, <ABC>` gives a, b, c). Keeping case there would
 break matching of registers and names passed as macro arguments; quoted strings keep case.
 `EXITM <value>` (macro functions) and the `%` operator are not supported.
+
+## D76. Release verification downloads through the API (2026-11-12)
+
+The verify jobs fetched the published zips from the anonymous browser link, which returns
+404 while the repository is private, so every tag run failed after a good release. They
+now read the release through the GitHub API with the job's token and download the assets
+from there, then check the SHA-256 as before. This works for a private and a public
+repository alike.
