@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question about using emu32
+    url: https://github.com/hani-k07/emu32/blob/main/src/emu32/help/quickstart.md
+    about: The quick start tutorial and the syntax reference answer most questions.
+  - name: Security problem
+    url: https://github.com/hani-k07/emu32/security/advisories/new
+    about: Report security problems privately, not in a public issue.

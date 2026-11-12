@@ -11,15 +11,29 @@ unchanged, so a course can use emu32 instead of setting up Visual Studio: no pro
 settings, no linker, and a debugger that shows every register, flag and memory byte as you
 step.
 
-[![Download for Windows](https://img.shields.io/badge/Download-Windows-blue)](https://github.com/hani-k07/emu32/releases/latest)
+[![CI](https://github.com/hani-k07/emu32/actions/workflows/ci.yml/badge.svg)](https://github.com/hani-k07/emu32/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/hani-k07/emu32?label=release)](https://github.com/hani-k07/emu32/releases/latest)
 [![License: GPL v2+](https://img.shields.io/badge/license-GPL--2.0--or--later-green)](LICENSE)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)
+![Platforms](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)
 
 **[Download emu32 for Windows](https://github.com/hani-k07/emu32/releases/latest)**: open the
 latest release and download the file named `emu32-<version>-windows.zip`. The green **Code >
 Download ZIP** button gives the source code, not the program.
 
 ![The emulator window paused in an .ELSEIF: Disassembly shows the CMP and JB that MASM made from it, and Screen shows the output so far](docs/images/emulator.png)
+
+## Contents
+
+[Screenshots](#screenshots) |
+[Why emu32](#why-emu32) |
+[Features](#features) |
+[Install](#install) |
+[Quick start](#quick-start) |
+[Limitations](#known-limitations) |
+[For instructors](#for-instructors) |
+[Contributing](#contributing) |
+[License](#license)
 
 ## Screenshots
 
@@ -116,6 +130,32 @@ git clone https://github.com/hani-k07/emu32.git
 cd emu32
 pip install .
 emu32
+```
+
+## A first program
+
+Paste this into the editor, press F5 to compile and Ctrl+F5 to open the emulator, then
+press F8 to step through it:
+
+```asm
+INCLUDE Irvine32.inc
+
+.data
+msg BYTE "Sum of 1..10 = ", 0
+
+.code
+main PROC
+    mov  edx, OFFSET msg
+    call WriteString
+    mov  eax, 0
+    mov  ecx, 10
+L1: add  eax, ecx          ; watch EAX and ECX change after every step
+    loop L1
+    call WriteDec          ; prints 55
+    call Crlf
+    exit
+main ENDP
+END main
 ```
 
 ## Quick start
