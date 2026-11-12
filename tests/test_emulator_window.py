@@ -52,6 +52,16 @@ def register_row(win, name):
     return win.mode.registers.index(name)
 
 
+def test_loading_enables_the_controls(window):
+    assert not window.buttons["run"].isEnabled()
+    assert window.load_source(LOOP, title="loop.asm")
+    for key in ("reload", "step_back", "step", "run"):
+        assert window.buttons[key].isEnabled(), key
+        assert window.act[key].isEnabled(), key
+    assert window.bottom_buttons["Reset"].isEnabled()
+    assert not window.buttons["stop"].isEnabled()
+
+
 def test_load_shows_registers_memory_and_disassembly(window):
     assert window.load_source(LOOP, title="loop.asm")
     assert window.windowTitle().startswith("loop.asm")

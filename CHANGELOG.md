@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.10.2 (2026-11-12)
+
+- Fixed: after Emulate, the emulator window's Run, Single step, Step back, Reload and
+  Reset stayed greyed out until a program had run once, so a newly loaded program could
+  not be started.
+
 ## 0.10.1 (2026-11-12)
 
 - Release checks download the published zips through the GitHub API, so they pass while
