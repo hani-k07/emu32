@@ -151,7 +151,7 @@ jobs:
 
   # The zip as a student gets it, on other Windows machines: downloaded (marked as coming from
   # the internet), unpacked into a folder with spaces and accented letters, then run portable
-  # and installed. For a tag, the zip comes from the public release link.
+  # and installed. For a tag, the zips come from the published release.
   verify:
     needs: windows
     strategy:
@@ -168,19 +168,26 @@ jobs:
         with:
           name: ${{ needs.windows.outputs.portable }}
 
-      - name: Download the published zips like a browser would
+      # Through the GitHub API with the job's token, so this works while the repository is
+      # private as well as public (an anonymous browser link gives 404 for a private repo).
+      - name: Download the published zips from the release
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $expected = @{ "${{ needs.windows.outputs.zip }}" = "${{ needs.windows.outputs.sha256 }}";
                          "${{ needs.windows.outputs.portable }}" = "${{ needs.windows.outputs.portable_sha256 }}" }
+          $auth = @{ Authorization = "Bearer $env:GH_TOKEN"; 'X-GitHub-Api-Version' = '2022-11-28' }
+          $release = Invoke-RestMethod -Headers $auth "https://api.github.com/repos/${{ github.repository }}/releases/tags/$env:GITHUB_REF_NAME"
           foreach ($zip in $expected.Keys) {
-            $url = "https://github.com/${{ github.repository }}/releases/download/$env:GITHUB_REF_NAME/$zip"
+            $asset = $release.assets | Where-Object name -eq $zip
+            if (-not $asset) { "$zip is not attached to release $env:GITHUB_REF_NAME"; exit 1 }
             Remove-Item $zip
-            Invoke-WebRequest $url -OutFile $zip
+            Invoke-WebRequest $asset.url -OutFile $zip -Headers ($auth + @{ Accept = 'application/octet-stream' })
             $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower()
             if ($hash -ne $expected[$zip]) { "downloaded $zip has a different SHA-256"; exit 1 }
-            "downloaded $url, SHA-256 matches the release notes"
+            "downloaded $zip from the release, SHA-256 matches the release notes"
           }
 
       - name: Unpack into an unusual folder

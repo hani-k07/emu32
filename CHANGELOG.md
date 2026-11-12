@@ -4,6 +4,11 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.10.1 (2026-11-12)
+
+- Release checks download the published zips through the GitHub API, so they pass while
+  the repository is private. No change to the program.
+
 ## 0.10.0 (2026-11-12)
 
 Runs the MASM programs written for Visual Studio courses with the Irvine32 library.
