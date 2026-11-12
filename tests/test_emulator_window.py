@@ -76,6 +76,19 @@ def test_load_shows_registers_memory_and_disassembly(window):
     assert "loop main.top" in texts  # labels inside a PROC are local to it
 
 
+def test_register_columns_say_they_are_parts_of_one_32_bit_register(window):
+    """A student must not read the AX column as a 16-bit machine."""
+    table = window.registers.table
+    titles = [table.horizontalHeaderItem(c).text() for c in range(table.columnCount())]
+    assert titles == ["", "Register", "32-bit", "Low 16", "Bits 15-8", "Bits 7-0"]
+    assert "AX" in table.horizontalHeaderItem(3).toolTip()
+    window.load_source(LOOP)
+    row = register_row(window, "EAX")
+    window.session.set_register("EAX", 0x1234_5678)
+    window.refresh()
+    assert [cell(table, row, c) for c in (2, 3, 4, 5)] == ["12345678", "5678", "56", "78"]
+
+
 def test_single_step_marks_changed_registers(window, qtbot):
     window.load_source(LOOP)
     window.command("step")

@@ -304,6 +304,7 @@ class AboutDialog(QDialog):
             "emu32 is an independent project, not affiliated with EMU8086."
         )
         copyright_.setAlignment(Qt.AlignCenter)
+        copyright_.setWordWrap(True)
         link = QLabel(f'<a href="{REPOSITORY}">{REPOSITORY.removeprefix("https://")}</a>')
         link.setOpenExternalLinks(True)
         link.setAlignment(Qt.AlignCenter)
@@ -321,7 +322,10 @@ class AboutDialog(QDialog):
         layout.addWidget(copyright_)
         layout.addWidget(link)
         layout.addWidget(buttons)
-        self.setFixedWidth(440)
+        # A minimum, not a fixed width: a wider system font must not cut the text off.
+        self.setMinimumWidth(480)
+        # Wrapped text needs more height at this width than the default size hint gives.
+        self.resize(480, max(self.sizeHint().height(), layout.totalHeightForWidth(480)))
 
 
 def read_source(path: str | Path) -> tuple[str, bool]:

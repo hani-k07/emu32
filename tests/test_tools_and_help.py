@@ -153,3 +153,13 @@ def test_about_lists_every_engine_with_a_version(qtbot):
     parts = component_versions()
     assert [p[0].split()[0] for p in parts] == ["Unicorn", "Keystone", "Capstone", "Qt", "Python"]
     assert all(version for _, version, _ in parts)
+
+
+def test_about_is_tall_enough_for_its_wrapped_text(qtbot):
+    """Wrapped labels must not be squeezed or cut off (they were, with a wider font)."""
+    from emu32.gui.dialogs import AboutDialog
+
+    dialog = AboutDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.minimumWidth() >= 480
+    assert dialog.height() >= dialog.layout().totalHeightForWidth(dialog.width())

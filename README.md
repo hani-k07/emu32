@@ -21,7 +21,7 @@ step.
 latest release and download the file named `emu32-<version>-windows.zip`. The green **Code >
 Download ZIP** button gives the source code, not the program.
 
-![The emulator window paused in an .ELSEIF: Disassembly shows the CMP and JB that MASM made from it, and Screen shows the output so far](docs/images/emulator.png)
+![The emulator window paused inside an .IF: Registers show each 32-bit register with its low 16 bits and bytes, Disassembly shows the CMP and JB that MASM made, Source highlights the current line, and Screen shows the output so far](docs/images/emulator.png)
 
 ## Contents
 
@@ -44,10 +44,6 @@ Download ZIP** button gives the source code, not the program.
 | Errors with line numbers | CPU structure view |
 | --- | --- |
 | ![Two compile errors listed with line numbers and marked in the margin](docs/images/errors-dark.png) | ![Fetch, decode and execute shown on a simple CPU model](docs/images/cpu-view.png) |
-
-The debugger (dark theme), paused in the middle of a program:
-
-![Registers, memory, disassembly and source side by side, dark theme](docs/images/emulator-dark.png)
 
 ## Why emu32
 
