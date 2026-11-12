@@ -220,13 +220,11 @@ def test_theme_switch_at_run_time(window):
     assert window.act["compile"].icon().pixmap(16, 16).toImage() is not None
 
 
-def test_dark_is_the_default_when_the_system_setting_is_unknown(monkeypatch):
-    from PySide6.QtCore import Qt
-    from PySide6.QtWidgets import QApplication
-
-    hints = QApplication.instance().styleHints()
-    monkeypatch.setattr(type(hints), "colorScheme", lambda self: Qt.ColorScheme.Unknown)
-    assert theme.system_theme() == "dark"
+def test_light_is_the_default_theme():
+    """Bright by default for classrooms; dark stays a choice in Options."""
+    assert theme.DEFAULT_THEME == "light"
+    theme.apply("no-such-theme")
+    assert theme.current_name() == "light"
 
 
 def test_unexpected_errors_go_to_the_log(monkeypatch):
@@ -254,6 +252,7 @@ def test_blank_start_document_gives_way_to_the_first_real_one(window, tmp_path):
 
 
 def test_toolbar_icons_follow_the_theme(window):
+    window.switch_theme("dark")
     before = window.act["save"].icon().cacheKey()
     window.switch_theme("light")
     assert window.act["save"].icon().cacheKey() != before

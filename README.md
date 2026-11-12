@@ -37,13 +37,13 @@ Download ZIP** button gives the source code, not the program.
 
 ## Screenshots
 
-| Editor (light) | Editor (dark) |
+| Editor (light, the default) | Editor (dark, a choice in Options) |
 | --- | --- |
-| ![Editor with syntax coloring, line numbers and a breakpoint, light theme](docs/images/editor-light.png) | ![The same editor in the dark theme](docs/images/editor-dark.png) |
+| ![Editor with syntax coloring and line numbers, light theme (the default)](docs/images/editor-light.png) | ![The same editor in the dark theme](docs/images/editor-dark.png) |
 
 | Errors with line numbers | CPU structure view |
 | --- | --- |
-| ![Two compile errors listed with line numbers and marked in the margin](docs/images/errors-dark.png) | ![Fetch, decode and execute shown on a simple CPU model](docs/images/cpu-view.png) |
+| ![Two compile errors listed with line numbers and marked in the margin, light theme](docs/images/errors-light.png) | ![Fetch, decode and execute shown on a simple CPU model](docs/images/cpu-view.png) |
 
 ## Why emu32
 

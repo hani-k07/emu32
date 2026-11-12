@@ -6,6 +6,8 @@ whole semester.
 
 ## 0.10.3 (2026-11-12)
 
+- Changed: the default theme is now light (brighter panels and highlights). Dark is still
+  available in Options and is remembered.
 - Changed: the Registers panel columns are now labeled "32-bit", "Low 16", "Bits 15-8" and
   "Bits 7-0", with a tooltip on each, so it is clear that AX, AH and AL are parts of the
   32-bit register and not a 16-bit mode. The program was always 32-bit.

@@ -91,7 +91,7 @@ def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("emu32")
     install_excepthook()
-    theme.apply(settings.get_str("theme", theme.system_theme()))
+    theme.apply(settings.get_str("theme", theme.DEFAULT_THEME))
     window = EditorWindow()
     window.show()
     files = [arg for arg in sys.argv[1:] if not arg.startswith("-")]

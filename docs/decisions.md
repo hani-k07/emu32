@@ -728,3 +728,19 @@ The verify jobs fetched the published zips from the anonymous browser link, whic
 now read the release through the GitHub API with the job's token and download the assets
 from there, then check the SHA-256 as before. This works for a private and a public
 repository alike.
+
+## D77. Light is the default theme (2026-11-12)
+
+The first start used dark, or whatever the system reported. The owner asked for a brighter
+look, and a bright theme reads better on lab projectors, so light is now the default
+whatever the system setting is. Dark stays a choice in Options and is remembered. The
+light palette's panels, selection and changed-value colors were made slightly brighter;
+`scripts/check_contrast.py` still passes. `theme.system_theme()` is removed; callers use
+`theme.DEFAULT_THEME`. Supersedes the dark default recorded in the earlier theme decisions.
+
+## D78. Register columns say they are parts of one register (2026-11-12)
+
+The Registers panel headed its columns "Value", "16-bit", "High" and "Low", which read as
+if emu32 had a 16-bit mode. They are now "32-bit", "Low 16", "Bits 15-8" and "Bits 7-0",
+with a tooltip on each. The program was always 32-bit: the first column is the whole
+register and the others are AX, AH and AL.
