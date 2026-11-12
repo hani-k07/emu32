@@ -385,6 +385,7 @@ class EmulatorWindow(QMainWindow):
     def _after_load(self) -> None:
         self.before_registers, self.before_flags = {}, {}
         self.memory_model.show(0, [])
+        self._set_busy(False)  # enables Run, Step, Reload and Reset now that a program is in
         self.refresh()
         self.statusBar().showMessage(f"Loaded {self.title}")
 
