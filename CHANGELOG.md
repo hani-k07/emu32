@@ -11,10 +11,12 @@ whole semester.
 - Changed: the Registers panel columns are now labeled "32-bit", "Low 16", "Bits 15-8" and
   "Bits 7-0", with a tooltip on each, so it is clear that AX, AH and AL are parts of the
   32-bit register and not a 16-bit mode. The program was always 32-bit.
+- Fixed: in projector mode and when zooming, the Registers, Memory and Disassembly column
+  titles and values were cut off ("egiste", "00400..."). The columns now follow the font.
 - Fixed: the About window cut off text ("Capstone (disassembler)", the independence
   notice) and squeezed the "Built with" list when the system font was wide.
-- New README screenshots, a security policy and ten heavier regression programs. No other
-  change to the program.
+- New high-resolution README screenshots (including projector mode, help and tools), a
+  security policy and ten heavier regression programs. No other change to the program.
 
 ## 0.10.2 (2026-11-12)
 

@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QInputDialog, QMessageBox
 
 from emu32.gui import theme
@@ -87,6 +87,19 @@ def test_register_columns_say_they_are_parts_of_one_32_bit_register(window):
     window.session.set_register("EAX", 0x1234_5678)
     window.refresh()
     assert [cell(table, row, c) for c in (2, 3, 4, 5)] == ["12345678", "5678", "56", "78"]
+
+
+def test_columns_follow_the_font_in_projector_mode(window):
+    """Large projector text must not cut off column titles (it did: "egiste", "ow 1")."""
+    window.load_source(LOOP)
+    window.set_projector(True)
+    for table in (window.registers.table, window.memory_view, window.disassembly_view):
+        header = table.horizontalHeader()
+        metrics = header.fontMetrics()
+        for column in range(table.model().columnCount()):
+            title = str(table.model().headerData(column, Qt.Horizontal) or "")
+            assert table.columnWidth(column) >= metrics.horizontalAdvance(title), title
+    window.set_projector(False)
 
 
 def test_single_step_marks_changed_registers(window, qtbot):

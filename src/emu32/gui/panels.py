@@ -58,6 +58,16 @@ def value_texts(symbol, value: int) -> tuple[str, str]:
     return str(value), raw[::-1].hex().upper()
 
 
+def refit_columns(view: QAbstractItemView) -> int:
+    """Set the column widths again after the font changed (zoom, projector mode), so
+    titles and values are not cut off. Returns the new total width."""
+    chars = view.property("fit_chars")
+    if not chars:
+        return 0
+    view.verticalHeader().setDefaultSectionSize(view.fontMetrics().height() + 6)
+    return fit_columns(view, list(chars))
+
+
 def count_text(steps: int, approximate: bool) -> str:
     """Long runs skip exact counting, so their count is a lower bound (D65)."""
     return f"at least {steps:,}" if approximate else f"{steps:,}"
@@ -80,6 +90,7 @@ def make_table(headers: list[str], rows: int = 0) -> QTableWidget:
 def fit_columns(view: QAbstractItemView, widths_in_chars: list[int]) -> int:
     """Set column widths from the font instead of measuring the contents, which would
     read every row on each refresh. Returns the total width, for a minimum panel width."""
+    view.setProperty("fit_chars", list(widths_in_chars))  # so refit_columns can redo it
     header = view.horizontalHeader()
     header.setSectionResizeMode(QHeaderView.Interactive)
     header.setStretchLastSection(True)
