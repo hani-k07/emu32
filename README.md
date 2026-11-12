@@ -4,23 +4,44 @@ A desktop tool for learning 32-bit x86 (IA-32) assembly. Write a program in the 
 compile it, then run it one instruction at a time and watch the registers, flags, memory,
 stack, variables and screen output change.
 
+It runs the MASM programs written for Visual Studio courses with the Irvine32 library
+unchanged, so a course can use emu32 instead of setting up Visual Studio: no project
+settings, no linker, and a debugger that shows every register, flag and memory byte as you
+step, and can step back.
+
 **[Download emu32 for Windows](https://github.com/hani-k07/emu32/releases/latest)**: open the
 latest release and download the file named `emu32-<version>-windows.zip`. The green **Code >
 Download ZIP** button gives the source code, not the program.
 
-![The emulator window paused inside a recursive procedure](docs/images/emulator.png)
+![The emulator window paused in an .ELSEIF: Disassembly shows the CMP and JB that MASM made from it, and Screen shows the output so far](docs/images/emulator.png)
 
-- Editor with syntax coloring, error list with line numbers, breakpoints and autosave
-- Emulator window: registers, memory, disassembly, stack, variables, flags, screen
-- Single step, step over, step back, run with a step delay, breakpoints and watches
+**Visual Studio / Irvine32 programs**
+
+- `INCLUDE Irvine32.inc`, `PROC`/`ENDP` with `USES` and `LOCAL`, `INVOKE` and `PROTO`
+- `.IF`/`.ELSEIF`/`.ELSE`, `.WHILE`, `.REPEAT`/`.UNTIL`, `.BREAK`/`.CONTINUE`
+- `MACRO` with `LOCAL` and default values; `mWrite`, `mWriteLn` and the other course
+  macros built in
+- `STRUCT`, `QWORD`, `LABEL`, `ALIGN`, `TEXTEQU`, `@@` labels, `LENGTHOF`/`SIZEOF`/`TYPE`
+- Conditional assembly and repeat blocks: `IF`/`IFB`/`IFIDN`/`ELSE`, `REPT`, `FOR`,
+  `FORC`, `WHILE`
+- Floating point: `REAL4`/`REAL8`/`REAL10`, the x87 FPU instructions, `WriteFloat`,
+  `ReadFloat`, `ShowFPUStack`
+- The Irvine32 console routines (`WriteString`, `ReadInt`, `DumpRegs`, ...) and
+  `int 21h` services; Intel/NASM style as well
+
+**Debugger**
+
+- Panels for registers, memory, disassembly, stack, variables, flags, FPU and screen
+- Single step, step over, step back (registers, memory and FPU), run with a step delay,
+  breakpoints and watches
 - A CPU structure view that shows fetch, decode and execute in a simple model
-- Runs the MASM programs written for Visual Studio and the Irvine32 library unchanged:
-  `INVOKE`, `.IF`/`.WHILE`/`.REPEAT`, macros (with `mWrite`), `STRUCT`, `QWORD`, `LOCAL`,
-  and floating point with `REAL4`/`REAL8` and the x87 FPU (with an FPU panel)
-- Intel/NASM style as well
-- Built-in console library (`WriteString`, `ReadInt`, ...) and `int 21h` services
-- Converter, calculator and ASCII table; a quick start tutorial and references
-- Works offline; projector mode for teaching
+
+**Editor and tools**
+
+- Syntax coloring, error list with line numbers (click to jump), breakpoints, autosave
+- Examples, converter, calculator and ASCII table; a quick start tutorial, references
+  and a "Coming from Visual Studio" page
+- Works offline; light, dark and projector modes for teaching
 
 ## Install
 
@@ -77,7 +98,7 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
 [syntax reference](src/emu32/help/syntax.md) and
 [instruction reference](src/emu32/help/instructions.md) are in the same folder.
 
-![The editor with a breakpoint and a compiled program](docs/images/editor.png)
+![The editor with the grade report example compiled and a breakpoint on line 17](docs/images/editor.png)
 
 ## Known limitations
 
