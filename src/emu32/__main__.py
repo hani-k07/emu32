@@ -93,7 +93,7 @@ def main() -> int:
     app.setApplicationName("emu32")
     app.setWindowIcon(app_icon())
     install_excepthook()
-    theme.apply(settings.get_str("theme", theme.system_theme()))
+    theme.apply(settings.get_str("theme", theme.DEFAULT_THEME))
     window = EditorWindow()
     window.show()
     files = [arg for arg in sys.argv[1:] if not arg.startswith("-")]

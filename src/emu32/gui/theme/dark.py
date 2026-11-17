@@ -1,4 +1,4 @@
-"""Dark palette (the default). Checked by scripts/check_contrast.py."""
+"""Dark palette (a choice in Options). Checked by scripts/check_contrast.py."""
 
 PALETTE = {
     "bg.base": "#111318",

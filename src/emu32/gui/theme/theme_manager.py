@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from functools import cache
 
-from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QFont, QPalette
 from PySide6.QtWidgets import QApplication
 
@@ -14,7 +13,8 @@ from emu32.gui.theme.tokens import COLOR_TOKENS, UI_POINT_SIZE
 PALETTES = {"dark": dark.PALETTE, "light": light.PALETTE, "contrast": contrast.PALETTE}
 CHOICES = (("dark", "Dark"), ("light", "Light"))  # contrast is projector mode, not a choice
 
-_current = "dark"
+DEFAULT_THEME = "light"  # bright and easy to read in a classroom; Options switches to dark
+_current = DEFAULT_THEME
 
 
 def current_name() -> str:
@@ -35,18 +35,10 @@ def _qcolor(theme: str, name: str) -> QColor:
     return QColor(PALETTES[theme][name])
 
 
-def system_theme() -> str:
-    """The OS light or dark setting, for the first start. Dark when it cannot be read."""
-    app = QApplication.instance()
-    if app is not None and app.styleHints().colorScheme() == Qt.ColorScheme.Light:
-        return "light"
-    return "dark"
-
-
 def apply(name: str) -> None:
     """Switch the whole application to a theme ("dark", "light" or "contrast")."""
     global _current
-    _current = name if name in PALETTES else "dark"
+    _current = name if name in PALETTES else DEFAULT_THEME
     tokens = PALETTES[_current]
     app = QApplication.instance()
     app.setStyle("Fusion")

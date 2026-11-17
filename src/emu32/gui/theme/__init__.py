@@ -2,12 +2,12 @@
 
 from emu32.gui.theme.theme_manager import (
     CHOICES,
+    DEFAULT_THEME,
     PALETTES,
     apply,
     color,
     current_name,
-    system_theme,
     token,
 )
 
-__all__ = ["CHOICES", "PALETTES", "apply", "color", "current_name", "system_theme", "token"]
+__all__ = ["CHOICES", "PALETTES", "apply", "color", "current_name", "DEFAULT_THEME", "token"]

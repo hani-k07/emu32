@@ -533,7 +533,7 @@ class EditorWindow(QMainWindow):
 
     def options_dialog(self) -> None:
         dialog = OptionsDialog(
-            settings.get_str("theme", theme.system_theme()),
+            settings.get_str("theme", theme.DEFAULT_THEME),
             self.font_size,
             settings.get_bool("show_welcome", True),
             self.session.max_steps,

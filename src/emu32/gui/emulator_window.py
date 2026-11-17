@@ -54,6 +54,7 @@ from emu32.gui.panels import (
     count_text,
     fit_columns,
     fixed_font,
+    refit_columns,
 )
 from emu32.gui.tools import show_tool
 from emu32.gui.worker import SessionRunner
@@ -668,6 +669,10 @@ class EmulatorWindow(QMainWindow):
         factor = self.font_scale * (PROJECTOR_SCALE if self.projector else 1.0)
         scale_fonts(self, factor)
         scale_fonts(self.cpu, factor)
+        # Column widths come from the font, so they must follow it or the text is cut off.
+        self.registers.table.setMinimumWidth(refit_columns(self.registers.table))
+        self.memory_view.setMinimumWidth(refit_columns(self.memory_view))
+        refit_columns(self.disassembly_view)
 
     def refresh_icons(self) -> None:
         """Redraw the control icons in the current theme's colors."""
@@ -681,7 +686,7 @@ class EmulatorWindow(QMainWindow):
             self._theme_before = theme.current_name()
             theme.apply("contrast")
         else:
-            theme.apply(getattr(self, "_theme_before", "dark"))
+            theme.apply(getattr(self, "_theme_before", theme.DEFAULT_THEME))
         self.source.refresh_theme()
         self.refresh_icons()
         self._apply_scale()

@@ -58,6 +58,16 @@ def value_texts(symbol, value: int) -> tuple[str, str]:
     return str(value), raw[::-1].hex().upper()
 
 
+def refit_columns(view: QAbstractItemView) -> int:
+    """Set the column widths again after the font changed (zoom, projector mode), so
+    titles and values are not cut off. Returns the new total width."""
+    chars = view.property("fit_chars")
+    if not chars:
+        return 0
+    view.verticalHeader().setDefaultSectionSize(view.fontMetrics().height() + 6)
+    return fit_columns(view, list(chars))
+
+
 def count_text(steps: int, approximate: bool) -> str:
     """Long runs skip exact counting, so their count is a lower bound (D65)."""
     return f"at least {steps:,}" if approximate else f"{steps:,}"
@@ -80,6 +90,7 @@ def make_table(headers: list[str], rows: int = 0) -> QTableWidget:
 def fit_columns(view: QAbstractItemView, widths_in_chars: list[int]) -> int:
     """Set column widths from the font instead of measuring the contents, which would
     read every row on each refresh. Returns the total width, for a minimum panel width."""
+    view.setProperty("fit_chars", list(widths_in_chars))  # so refit_columns can redo it
     header = view.horizontalHeader()
     header.setSectionResizeMode(QHeaderView.Interactive)
     header.setStretchLastSection(True)
@@ -113,10 +124,19 @@ class RegistersPanel(QWidget):
         super().__init__()
         self.mode = mode
         self.table = make_table(
-            ["", "Register", "Value", "16-bit", "High", "Low"], len(mode.registers)
+            ["", "Register", f"{mode.bits}-bit", "Low 16", "Bits 15-8", "Bits 7-0"],
+            len(mode.registers),
         )
         self.table.setToolTip("Double-click a register to change it while the program is paused.")
-        # Never narrower than its columns, so High and Low are not cut off.
+        # The last three columns are parts of the same register, not separate registers.
+        for column, tip in (
+            (2, "The whole register, for example EAX"),
+            (3, "The low 16 bits of the register, for example AX (part of EAX)"),
+            (4, "Bits 15 to 8, the high byte of AX, for example AH (EAX, EBX, ECX and EDX only)"),
+            (5, "Bits 7 to 0, the low byte of AX, for example AL (EAX, EBX, ECX and EDX only)"),
+        ):
+            self.table.horizontalHeaderItem(column).setToolTip(tip)
+        # Never narrower than its columns, so the last two are not cut off.
         self.table.setMinimumWidth(fit_columns(self.table, [1, 6, 8, 4, 2, 2]))
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.table.cellDoubleClicked.connect(
