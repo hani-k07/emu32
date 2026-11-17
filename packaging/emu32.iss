@@ -36,6 +36,7 @@ OutputBaseFilename=emu32-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\build\emu32.ico
 UninstallDisplayIcon={app}\emu32.exe
 UninstallDisplayName=emu32 {#AppVersion}
 ChangesAssociations=yes

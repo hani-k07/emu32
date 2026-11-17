@@ -728,3 +728,17 @@ The verify jobs fetched the published zips from the anonymous browser link, whic
 now read the release through the GitHub API with the job's token and download the assets
 from there, then check the SHA-256 as before. This works for a private and a public
 repository alike.
+
+## D77. The logo is drawn in code (2026-11-17)
+
+emu32 had no icon: windows, the .exe and the installer showed the default one. The logo is
+an original mark, a memory operand's square brackets around a step triangle on a blue
+tile ("what is in memory, one step at a time"). It does not resemble EMU8086's icon.
+
+It is drawn with QPainter in `gui/logo.py`, like the toolbar icons (no image files in the
+package). Sizes below 28 px use bolder, wider proportions so the three shapes stay apart
+at 16 px; a test checks that. `scripts/make_icon.py` writes the .ico for the build, which
+the release workflow runs before PyInstaller, so no binary icon is committed and the
+files cannot drift from the app. The .ico holds PNG entries for 16 to 256 px. The colors
+are the two accent blues of the dark and light palettes and stay the same in every theme.
+`docs/images/logo.png` (for the README) is made by the same script. See docs/brand.md.
