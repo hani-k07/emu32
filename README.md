@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/logo.png" width="112" alt="emu32 logo"></p>
+
 # emu32
 
 A desktop tool for learning 32-bit x86 (IA-32) assembly. Write a program in the editor,

@@ -43,6 +43,9 @@ jobs:
           python -m pip install ".[dev]" pyinstaller
           python -m pytest -q
 
+      - name: Make the icon
+        run: python scripts/make_icon.py build/emu32.ico
+
       - name: Build the program folder
         run: pyinstaller --noconfirm --distpath build/dist --workpath build/work packaging/emu32.spec
 

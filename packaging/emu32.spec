@@ -1,5 +1,6 @@
 # PyInstaller build of the Windows program folder.
 # Run from the repository root:
+#   python scripts/make_icon.py build/emu32.ico
 #   pyinstaller --noconfirm --distpath build/dist --workpath build/work packaging/emu32.spec
 # The result, build/dist/emu32, is both the portable folder and the installer's source.
 import os
@@ -30,6 +31,7 @@ exe = EXE(  # noqa: F821
     [],
     exclude_binaries=True,
     name="emu32",
+    icon=os.path.join(root, "build", "emu32.ico"),  # from scripts/make_icon.py
     # EMU32_CONSOLE=1 builds with a console window, to see errors while debugging a build.
     console=os.environ.get("EMU32_CONSOLE") == "1",
     upx=False,

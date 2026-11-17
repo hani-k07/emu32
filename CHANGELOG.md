@@ -4,6 +4,13 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.11.0 (2026-11-17)
+
+- emu32 has a logo: square brackets around a step triangle on a blue tile. It is the icon
+  of the program, its windows, the taskbar, the installer and the desktop shortcut, and it
+  is shown in the About window.
+- Fixed: the last line of the About window was cut off.
+
 ## 0.10.2 (2026-11-12)
 
 - Fixed: after Emulate, the emulator window's Run, Single step, Step back, Reload and

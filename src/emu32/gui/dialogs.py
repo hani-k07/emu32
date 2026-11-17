@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from emu32 import __version__
+from emu32.gui.logo import app_icon
 from emu32.gui.panels import fixed_font
 from emu32.gui.templates import TEMPLATES
 from emu32.gui.theme import CHOICES
@@ -265,6 +266,9 @@ class AboutDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("About emu32")
+        logo = QLabel()
+        logo.setObjectName("logo")
+        logo.setPixmap(app_icon().pixmap(72, 72))
         name = QLabel("emu32")
         font = name.font()
         font.setPointSize(TYPE_SCALE[-1] + 8)
@@ -273,7 +277,7 @@ class AboutDialog(QDialog):
         version = QLabel(f"version {__version__}")
         version.setFont(fixed_font())
         subtitle = QLabel("32-bit x86 assembly learning tool")
-        for label in (name, version, subtitle):
+        for label in (logo, name, version, subtitle):
             label.setAlignment(Qt.AlignCenter)
 
         license_box = QGroupBox("License")
@@ -304,6 +308,7 @@ class AboutDialog(QDialog):
             "emu32 is an independent project, not affiliated with EMU8086."
         )
         copyright_.setAlignment(Qt.AlignCenter)
+        copyright_.setWordWrap(True)  # the dialog has a fixed width
         link = QLabel(f'<a href="{REPOSITORY}">{REPOSITORY.removeprefix("https://")}</a>')
         link.setOpenExternalLinks(True)
         link.setAlignment(Qt.AlignCenter)
@@ -313,7 +318,7 @@ class AboutDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 16, 24, 16)
         layout.setSpacing(8)
-        for widget in (name, version, subtitle):
+        for widget in (logo, name, version, subtitle):
             layout.addWidget(widget)
         layout.addSpacing(8)
         layout.addWidget(license_box)

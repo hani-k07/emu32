@@ -87,9 +87,11 @@ def main() -> int:
     from emu32.gui import settings, theme
     from emu32.gui.editor_window import EditorWindow
     from emu32.gui.errors import install_excepthook
+    from emu32.gui.logo import app_icon
 
     app = QApplication(sys.argv)
     app.setApplicationName("emu32")
+    app.setWindowIcon(app_icon())
     install_excepthook()
     theme.apply(settings.get_str("theme", theme.system_theme()))
     window = EditorWindow()
