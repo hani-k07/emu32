@@ -17,8 +17,10 @@ specification. Updated after each milestone; the latest update is at the end.
   `jcxz`), `xlat`/`retn`, `in`/`out` warning, the `[bp+4]` parameter test, 16-bit flag
   tests. Open: `seg`, `include 'emu8086.inc'` (needs the owner), BCD and every jump
   mnemonic tested in the COM model, `org` other than at the start.
-- B3: `int 20h` done; `int 21h/09h` reads DS:DX. `0Ah`, `int 10h`, `int 16h`, the 80 x 25
-  screen: still missing.
+- B3: **Partial.** Done (D86, `tests/test_dos_services.py`): `int 20h`; `int 21h` 01h,
+  02h, 06h, 07h, 08h, 09h, 0Ah, 2Ah, 2Ch, 4Ch; `int 10h` 00h, 0Eh; `int 16h` 00h, 01h;
+  the spec's unsupported-function message. Missing: the 80 x 25 screen with cursor and
+  colors, and with it `int 10h` 02h, 03h, 06h, 09h, 13h.
 - B5/B6: New File dialog offers COM (default), EXE, flat, flat with library, empty; the
   Registers and Stack panels follow the model. Model selector, status-bar model, run-state
   pill: still missing.

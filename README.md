@@ -64,10 +64,12 @@ Download ZIP** button gives the source code, not the program.
 
 ### Reading the Registers panel
 
-emu32 is 32-bit only. The Registers panel shows each register whole in the **32-bit**
-column, then splits it into parts: **Low 16** is AX (the low half of EAX), **Bits 15-8** is
-AH and **Bits 7-0** is AL. They are parts of the same register, not a 16-bit mode. Hover a
-column title for a reminder. Registers that changed in the last step are marked with `*`.
+For a COM or EXE program the Registers panel shows the 8086 registers (AX ... SS, IP and
+FLAGS), each with its high and low byte and, in the **32-bit** column, the whole 32-bit
+register it belongs to. For a 32-bit flat program it shows each register whole in the
+**32-bit** column, then its parts: **Low 16** is AX, **Bits 15-8** is AH and **Bits 7-0**
+is AL. Hover a column title for a reminder. Registers that changed in the last step are
+marked with `*`.
 
 ## Why emu32
 
@@ -93,8 +95,8 @@ column title for a reminder. Registers that changed in the last step are marked 
   `FORC`, `WHILE`
 - Floating point: `REAL4`/`REAL8`/`REAL10`, the x87 FPU instructions, `WriteFloat`,
   `ReadFloat`, `ShowFPUStack`
-- The Irvine32 console routines (`WriteString`, `ReadInt`, `DumpRegs`, ...) and
-  `int 21h` services; Intel/NASM style as well
+- The Irvine32 console routines (`WriteString`, `ReadInt`, `DumpRegs`, ...);
+  Intel/NASM style as well
 
 **Debugger**
 
@@ -195,9 +197,10 @@ The full tutorial is under Help > Quick start tutorial (F1), and in
 
 ## Known limitations
 
-- 32-bit only. A 16-bit mode is planned.
+- COM and EXE programs get one 64 KB area with every segment register 0; no video
+  memory or graphics modes.
 - Release downloads are for Windows. On Linux and macOS, install with pip.
-- Flat memory without segments; one source file per program.
+- One source file per program.
   [docs/differences.md](docs/differences.md) lists everything emu32 does differently.
 - Step back covers the last 10,000 single steps; Run clears it. The trace window lists
   single steps only.

@@ -51,6 +51,11 @@ class Console:
         if self.on_output:
             self.on_output("")
 
+    def peek_char(self) -> str | None:
+        """The next typed character, left for the next read (int 16h/01h)."""
+        with self._cond:
+            return self._input[0] if self._input else None
+
     def try_read_char(self) -> str | None:
         """One typed character if there is one, without waiting (ReadKey)."""
         with self._cond:
