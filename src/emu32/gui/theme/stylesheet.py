@@ -113,6 +113,15 @@ QGroupBox::title {{
     subcontrol-origin: margin; left: {s3}px; padding: 0 {s1}px; color: {text_muted};
 }}
 QLabel#muted {{ color: {text_muted}; }}
+QLabel#state_pill {{
+    border: 2px solid {border_control}; border-radius: {s3}px; padding: {s1}px {s3}px;
+    font-weight: bold; color: {text_muted};
+}}
+QLabel#state_pill[state="running"] {{ color: {ok}; border-color: {ok}; }}
+QLabel#state_pill[state="paused"] {{ color: {warn}; border-color: {warn}; }}
+QLabel#state_pill[state="waiting"] {{ color: {warn}; border-color: {warn}; }}
+QLabel#state_pill[state="finished"] {{ color: {accent}; border-color: {accent}; }}
+QLabel#state_pill[state="error"] {{ color: {error}; border-color: {error}; }}
 QLabel#panel_title {{
     background: {bg_raised}; padding: {s1}px {s2}px; border-bottom: 1px solid {border};
     font-weight: bold;

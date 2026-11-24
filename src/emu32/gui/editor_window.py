@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
 from PySide6.QtCore import QByteArray, QSize, Qt, QTimer
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
+    QComboBox,
     QDockWidget,
     QFileDialog,
     QInputDialog,
+    QLabel,
     QListWidget,
     QListWidgetItem,
     QMainWindow,
@@ -20,10 +23,15 @@ from PySide6.QtWidgets import (
     QTabBar,
     QTabWidget,
     QToolButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 from emu32 import __version__
 from emu32.assembler import AssemblyError, Program
+from emu32.assembler.cleaner import clean
+from emu32.assembler.encode import detect_model
+from emu32.cpu_mode import MODELS
 from emu32.gui import settings, theme
 from emu32.gui.code_editor import CodeEditor
 from emu32.gui.dialogs import (
@@ -48,9 +56,47 @@ def _count(number: int, word: str) -> str:
     return f"{number:,} {word}{'' if number == 1 else 's'}"
 
 
+EXAMPLE_GROUPS = (
+    ("com", "&COM programs (8086 lab)"),
+    ("exe", "&EXE programs"),
+    ("flat", "32-bit &flat programs"),
+)
+
+
+@dataclass(frozen=True)
+class Example:
+    group: str
+    path: Path
+    description: str  # the file's first comment line
+    level: str  # "Basic" or "Intermediate", from its "; Level:" line
+
+    @property
+    def title(self) -> str:
+        return self.path.stem.replace("_", " ")
+
+    @property
+    def label(self) -> str:
+        return f"{self.title}  ({self.level})"
+
+
+def examples() -> list[Example]:
+    """The bundled examples, COM first (spec 12.2)."""
+    found = []
+    for group, _title in EXAMPLE_GROUPS:
+        folder = resources.files("emu32") / "examples" / group
+        for entry in sorted(folder.iterdir(), key=lambda e: e.name):
+            if not entry.name.endswith(".asm"):
+                continue
+            path = Path(str(entry))
+            header = path.read_text(encoding="utf-8").splitlines()[:2]
+            description = header[0].lstrip("; ").strip() if header else ""
+            level = header[1].partition("Level:")[2].strip() if len(header) > 1 else ""
+            found.append(Example(group, path, description, level or "Basic"))
+    return found
+
+
 def example_files() -> list[Path]:
-    folder = resources.files("emu32") / "examples"
-    return sorted(Path(str(p)) for p in folder.iterdir() if p.name.endswith(".asm"))
+    return [example.path for example in examples()]
 
 
 class Document(CodeEditor):
@@ -100,6 +146,7 @@ class EditorWindow(QMainWindow):
         self._build_actions()
         self._build_menus()
         self._build_toolbar()
+        self._build_status_bar()
         self.statusBar().showMessage("Ready")
 
         geometry = settings.settings().value("editor_geometry")
@@ -223,10 +270,14 @@ class EditorWindow(QMainWindow):
         help_menu.addSeparator()
         help_menu.addActions([a["options"], a["about"]])
         self._fill_recent_menu()
-        for path in example_files():
-            self.examples_menu.addAction(
-                self._action(path.stem.replace("_", " "), lambda p=path: self.open_example(p))
-            )
+        menus = {group: self.examples_menu.addMenu(title) for group, title in EXAMPLE_GROUPS}
+        for example in examples():
+            action = self._action(example.label, lambda p=example.path: self.open_example(p))
+            action.setToolTip(example.description)
+            action.setStatusTip(example.description)
+            menus[example.group].addAction(action)
+        for menu in menus.values():
+            menu.setToolTipsVisible(True)
 
     def _build_toolbar(self) -> None:
         bar = self.addToolBar("Main")
@@ -253,6 +304,24 @@ class EditorWindow(QMainWindow):
         save.setPopupMode(QToolButton.MenuButtonPopup)
         bar.addWidget(save)
         bar.addSeparator()
+        # Program model (spec 6): Auto follows the source; a choice here overrides it.
+        self.model_box = QComboBox()
+        self.model_box.setObjectName("model_box")
+        for key, text in (("", "Auto"), ("com", "COM"), ("exe", "EXE"), ("flat", "32-bit flat")):
+            self.model_box.addItem(text, key)
+        self.model_box.setToolTip(
+            "Program model. Auto picks it from the source: org 100h is COM, "
+            ".model small is EXE, .model flat or .386 is 32-bit flat."
+        )
+        self.model_box.currentIndexChanged.connect(self._model_changed)
+        model = QWidget()
+        column = QVBoxLayout(model)
+        column.setContentsMargins(6, 0, 6, 0)
+        column.addWidget(self.model_box)
+        caption = QLabel("Model")
+        caption.setAlignment(Qt.AlignCenter)
+        column.addWidget(caption)
+        bar.addWidget(model)
         bar.addActions([a["compile"], a["emulate"]])
         bar.addSeparator()
         bar.addActions([a["calculator"], a["converter"], a["options"], a["tutorial"], a["about"]])
@@ -293,6 +362,9 @@ class EditorWindow(QMainWindow):
         doc.document().setModified(False)
         doc.zoom(self.font_size - doc.font().pointSize())
         doc.document().modificationChanged.connect(lambda _m, d=doc: self._update_tab(d))
+        doc.cursorPositionChanged.connect(self._update_position)
+        doc.textChanged.connect(lambda: self._model_timer.start(300))
+        doc.textChanged.connect(lambda: self._set_build_status("Edited"))
         index = self.tabs.addTab(doc, doc.display_name())
         # A quiet close button that follows the theme, instead of the style's default.
         close = QToolButton()
@@ -439,6 +511,10 @@ class EditorWindow(QMainWindow):
         self.act["intel"].blockSignals(False)
         self.find_dialog.editor = doc
         self._update_title()
+        self._update_position()
+        self._update_model_label()
+        self.file_label.setText(doc.display_name() if doc else "")
+        self._set_build_status("Ready")
 
     def _update_title(self) -> None:
         doc = self.current()
@@ -447,6 +523,60 @@ class EditorWindow(QMainWindow):
     def _set_intel(self, value: bool) -> None:
         if self.current():
             self.current().intel = value
+
+    # Status bar and program model
+
+    def _build_status_bar(self) -> None:
+        """Permanent fields (spec 9.3): model, build status, line and column, file."""
+        self.model_label = QLabel()
+        self.build_label = QLabel("Ready")
+        self.position_label = QLabel()
+        self.file_label = QLabel()
+        self.model_label.setToolTip("Program model of this file")
+        for label in (self.model_label, self.build_label, self.position_label, self.file_label):
+            label.setObjectName("muted")
+            self.statusBar().addPermanentWidget(label)
+        self._model_timer = QTimer(self)
+        self._model_timer.setSingleShot(True)
+        self._model_timer.timeout.connect(self._update_model_label)
+
+    def model_override(self):
+        key = self.model_box.currentData()
+        return MODELS[key] if key else None
+
+    def _model_changed(self, _index: int) -> None:
+        self.session.model_override = self.model_override()
+        self._update_model_label()
+
+    def _detected_model(self, doc: Document):
+        return detect_model(clean(doc.toPlainText())[0], doc.intel)
+
+    def _update_model_label(self) -> None:
+        doc = self.current()
+        if doc is None:
+            self.model_label.setText("")
+            return
+        chosen = self.model_override()
+        detected = self._detected_model(doc)
+        if chosen is None:
+            self.model_label.setText(f"{detected.label} (auto)")
+        elif chosen is detected:
+            self.model_label.setText(chosen.label)
+        else:
+            self.model_label.setText(f"{chosen.label} (source looks {detected.label})")
+
+    def _update_position(self) -> None:
+        doc = self.current()
+        if doc is None:
+            self.position_label.setText("")
+            return
+        cursor = doc.textCursor()
+        self.position_label.setText(
+            f"Ln {cursor.blockNumber() + 1}, Col {cursor.positionInBlock() + 1}"
+        )
+
+    def _set_build_status(self, text: str) -> None:
+        self.build_label.setText(text)
 
     # Compile and emulate
 
@@ -465,6 +595,7 @@ class EditorWindow(QMainWindow):
             doc.set_error_lines({m.line for m in error.errors})
             count = len(error.errors)
             self.statusBar().showMessage(f"{count} error{'s' if count != 1 else ''}")
+            self._set_build_status(f"Errors: {count}")
             self.messages_dock.show()
             if error.errors:
                 doc.go_to_line(error.errors[0].line)
@@ -480,11 +611,19 @@ class EditorWindow(QMainWindow):
             f"{_count(program.instruction_count, 'instruction')}"
         )
         self.messages.addItem(summary)
+        chosen = self.model_override()
+        detected = self._detected_model(doc)
+        if chosen is not None and chosen is not detected:
+            self.messages.addItem(
+                f"warning: the source looks like a {detected.label} program; it was compiled "
+                f"as {chosen.label} because the Model box says so"
+            )
         for warning in program.warnings:
             item = QListWidgetItem(f"warning: {warning}")
             item.setData(Qt.UserRole, warning.line)
             self.messages.addItem(item)
         self.statusBar().showMessage(summary)
+        self._set_build_status("Compiled")
         return program
 
     def _message_clicked(self, item: QListWidgetItem) -> None:
@@ -506,7 +645,11 @@ class EditorWindow(QMainWindow):
         self.emulator.file_path = None
         self.emulator.source_provider = lambda d=doc: d.toPlainText()
         loaded = self.emulator.load_source(
-            doc.toPlainText(), doc.intel, doc.breakpoint_lines(), doc.display_name()
+            doc.toPlainText(),
+            doc.intel,
+            doc.breakpoint_lines(),
+            doc.display_name(),
+            model=self.model_override(),
         )
         if loaded:
             self.emulator.show()
@@ -583,10 +726,12 @@ class EditorWindow(QMainWindow):
         if choice == "new":
             self.new_file_dialog()
         elif choice == "examples":
-            names = [p.name for p in example_files()]
+            found = examples()
+            group_names = {"com": "COM", "exe": "EXE", "flat": "32-bit"}
+            names = [f"{group_names[e.group]}: {e.label} - {e.description}" for e in found]
             name, ok = QInputDialog.getItem(self, "Code examples", "Example:", names, 0, False)
             if ok:
-                self.open_example(next(p for p in example_files() if p.name == name))
+                self.open_example(found[names.index(name)].path)
         elif choice == "tutorial":
             self.show_quick_start()
         elif choice:

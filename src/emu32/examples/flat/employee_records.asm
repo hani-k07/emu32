@@ -1,4 +1,5 @@
 ; An array of structures: total salary and the longest-serving employee.
+; Level: Intermediate
 ; (Employee PTR [esi]).Field reads a field of the record ESI points to.
 INCLUDE Irvine32.inc
 

@@ -1,4 +1,5 @@
 ; Prints the first 12 Fibonacci numbers.
+; Level: Basic
 ; Intel/NASM style with the built-in library routines.
 ; Each number is the sum of the two before it: 0, 1, 1, 2, 3, 5, ...
 section .data

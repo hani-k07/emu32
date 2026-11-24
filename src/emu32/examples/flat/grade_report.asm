@@ -1,4 +1,5 @@
 ; Letter grades with MASM's decision directives: .IF, .ELSEIF, .ELSE and .WHILE.
+; Level: Intermediate
 ; MASM turns each condition into CMP and conditional jumps; step through it in the
 ; emulator and watch the Disassembly panel to see the instructions it made.
 INCLUDE Irvine32.inc

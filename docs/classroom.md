@@ -32,8 +32,9 @@ without administrator rights and without network access:
 
 1. Sign in as a normal student account. Disconnect the network.
 2. Run `emu32-setup.exe`. Expect no administrator prompt. Finish with "Launch emu32".
-3. In emu32: File > Examples > factorial, F5 (Compile), Ctrl+F5 (Emulate), F9 (Run). Type
-   5 in the Screen window and press Enter. Expect `Factorial: 120`.
+3. In emu32: File > Examples > 32-bit flat programs > factorial, F5 (Compile), Ctrl+F5
+   (Emulate), F9 (Run). Type 5 in the Screen window and press Enter. Expect
+   `Factorial: 120`.
 4. Close emu32. Open Settings > Apps, find emu32, and uninstall it. Expect the program
    folder (`%LOCALAPPDATA%\Programs\emu32`) and the Start Menu entry to be gone.
 5. Copy the `portable` folder from the zip to a USB stick, run `emu32.exe` from there, and

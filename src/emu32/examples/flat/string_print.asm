@@ -1,4 +1,5 @@
 ; Prints two lines with int 21h, written in Intel/NASM style.
+; Level: Basic
 ; In this style a name is an address: "mov edx, first" loads the address of
 ; the text, and [first] would read the memory there.
 section .data

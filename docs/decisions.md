@@ -892,3 +892,25 @@ The panel draws the cells with QPainter in the usual VGA text palette
 colors). Keys typed while the grid has focus go to the program one by one; the line box
 below stays for typing whole lines. Background bit 7 (blink) is drawn as a plain
 background.
+
+## D88. Examples by model, the Model box and the run state (2026-11-24)
+
+Examples (spec 12.2) live in `examples/com/`, `examples/exe/` and `examples/flat/`; the
+menu has one submenu per folder, COM first. A file's first comment line is its
+one-line description and its second line `; Level: Basic` or `; Level: Intermediate`;
+the menu shows the level and the description as a tooltip. There are 14 COM examples (the
+spec's list), 2 EXE and the 11 earlier 32-bit ones. Every example has a golden test with
+its exact output, and a test checks that each one is detected as the model of its folder.
+The spec's "macro use" example uses a MACRO defined in the file itself, since include-file
+macros are not confirmed (spec 2.2).
+
+The editor toolbar has a Model box: Auto (detect from the source) or COM, EXE, 32-bit
+flat. A choice overrides detection for Compile and Emulate and for Reload in the emulator;
+if the source looks like another model, Compile adds a warning. The status bar shows the
+model ("COM (auto)"), the build state (Ready, Edited, Compiled, Errors: n), the cursor line
+and column, and the file name.
+
+The emulator toolbar shows the run state in words and color (No program, Ready, Running,
+Paused, Finished, Error, Waiting for input); colors are theme tokens, and the words carry
+the meaning on their own. For COM and EXE programs the Registers panel has "Show 32-bit
+registers", off by default so the panel looks like an 8086's; the choice is remembered.

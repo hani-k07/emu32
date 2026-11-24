@@ -1,4 +1,5 @@
 ; Reverses a string with the stack and prints it with int 21h.
+; Level: Intermediate
 ; Characters are pushed in order and popped in reverse order.
 .386
 .model flat

@@ -110,7 +110,8 @@ marked with `*`.
 **Editor and tools**
 
 - Syntax coloring, error list with line numbers (click to jump), breakpoints, autosave
-- Examples, converter, calculator and ASCII table; a quick start tutorial, references
+- Examples for COM, EXE and 32-bit programs; converter, calculator and ASCII table; a
+  quick start tutorial, references
   and a "Coming from Visual Studio" page
 - Works offline; light, dark and projector modes for teaching
 

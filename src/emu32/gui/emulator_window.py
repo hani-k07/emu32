@@ -281,6 +281,17 @@ class EmulatorWindow(QMainWindow):
         self.delay.valueChanged.connect(lambda v: self.delay_label.setText(f"Step delay: {v} ms"))
         top.addWidget(self.delay_label)
         top.addWidget(self.delay)
+        top.addSeparator()
+        # Run state (spec 9.4), in words and color.
+        self.state_pill = QLabel()
+        self.state_pill.setObjectName("state_pill")
+        self.state_pill.setToolTip("What the program is doing")
+        holder = QWidget()  # keeps the label its own height instead of the toolbar's
+        column = QVBoxLayout(holder)
+        column.setContentsMargins(8, 0, 8, 0)
+        column.addWidget(self.state_pill, 0, Qt.AlignVCenter)
+        top.addWidget(holder)
+        self.set_state("ready" if self.session.program else "empty")
         self.addToolBar(Qt.TopToolBarArea, top)
 
         central = QWidget()
@@ -344,6 +355,8 @@ class EmulatorWindow(QMainWindow):
         self.runner.waiting.connect(self._waiting)
         self.screen.submitted.connect(lambda text: self.session.console.feed(text + "\n"))
         self.screen.typed.connect(self.session_feed)
+        self.registers.show_32.setChecked(settings.get_bool("show_32bit", False))
+        self.registers.show_32.toggled.connect(lambda on: settings.put("show_32bit", on))
         self.registers.edit_requested.connect(self.edit_register)
         self.address_box.returnPressed.connect(self.show_address)
         self.disassembly_view.doubleClicked.connect(self._disassembly_double_clicked)
@@ -359,12 +372,13 @@ class EmulatorWindow(QMainWindow):
     # Loading
 
     def load_source(
-        self, source: str, intel: bool = False, breakpoints=(), title: str = ""
+        self, source: str, intel: bool = False, breakpoints=(), title: str = "", model=None
     ) -> bool:
         """Assemble and load. Returns False (after showing the errors) if it does not
-        assemble."""
+        assemble. `model` overrides the program model found in the source."""
         if self.runner.busy:
             return False
+        self.session.model_override = model
         for line in self.session.breakpoint_lines:
             self.session.toggle_breakpoint(line)
         try:
@@ -390,6 +404,7 @@ class EmulatorWindow(QMainWindow):
         self.before_registers, self.before_flags = {}, {}
         self.memory_model.show(0, [])
         self._set_busy(False)  # enables Run, Step, Reload and Reset now that a program is in
+        self.set_state("ready")
         self.refresh()
         self.statusBar().showMessage(f"Loaded {self.title}")
 
@@ -470,6 +485,23 @@ class EmulatorWindow(QMainWindow):
     def stop(self) -> None:
         self.runner.stop()
 
+    _STATES = {
+        "empty": "No program",
+        "ready": "Ready",
+        "running": "Running",
+        "paused": "Paused",
+        "finished": "Finished",
+        "error": "Error",
+        "waiting": "Waiting for input",
+    }
+
+    def set_state(self, state: str) -> None:
+        self.run_state = state
+        self.state_pill.setText(self._STATES[state])
+        self.state_pill.setProperty("state", state)
+        self.state_pill.style().unpolish(self.state_pill)
+        self.state_pill.style().polish(self.state_pill)
+
     def _set_busy(self, busy: bool) -> None:
         loaded = self.session.program is not None
         for key in ("load", "reload", "reset", "step", "step_over", "step_back", "run"):
@@ -482,6 +514,7 @@ class EmulatorWindow(QMainWindow):
         if busy:
             self.refresh_timer.start(REFRESH_MS)
             self.statusBar().showMessage("Running...")
+            self.set_state("running")
         else:
             self.refresh_timer.stop()
 
@@ -490,16 +523,25 @@ class EmulatorWindow(QMainWindow):
         self.screen.set_waiting(False)
         if isinstance(outcome, SessionError):
             self.statusBar().showMessage(str(outcome))
+            self.set_state("error")
             return
         if isinstance(outcome, Exception):
+            self.set_state("error")
             report_exception(self, outcome)
             return
+        if outcome.reason is StopReason.ERROR:
+            self.set_state("error")
+        elif self.session.emulator.exited:
+            self.set_state("finished")
+        else:
+            self.set_state("paused")
         self.refresh(outcome)
         if outcome.reason is StopReason.ERROR:
             QMessageBox.warning(self, "Run-time error", outcome.message)
 
     def _waiting(self, waiting: bool) -> None:
         self.screen.set_waiting(waiting)
+        self.set_state("waiting" if waiting else "running")
         if waiting:
             self.show_screen()
             self.statusBar().showMessage("Waiting for input in the Screen window")

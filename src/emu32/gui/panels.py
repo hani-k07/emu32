@@ -8,6 +8,7 @@ from PySide6.QtCore import QSize, Qt, Signal
 from PySide6.QtGui import QColor, QFontDatabase, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QCheckBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -133,8 +134,15 @@ class RegistersPanel(QWidget):
         self.table.cellDoubleClicked.connect(
             lambda row, _c: self.edit_requested.emit(self.mode.registers[row])
         )
+        # COM and EXE programs: the 32-bit registers are a column that can be shown.
+        self.show_32 = QCheckBox("Show &32-bit registers")
+        self.show_32.setToolTip(
+            "Show EAX, EBX, ... next to AX, BX, ...: a 386 has them in 16-bit mode"
+        )
+        self.show_32.toggled.connect(self._show_32_changed)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self.show_32)
         layout.addWidget(self.table)
         self.set_mode(mode)
 
@@ -169,6 +177,11 @@ class RegistersPanel(QWidget):
             self.table.horizontalHeaderItem(column).setToolTip(tip)
         # Never narrower than its columns, so the last ones are not cut off.
         self.table.setMinimumWidth(fit_columns(self.table, widths))
+        self.show_32.setVisible(mode.is_16bit)
+        self._show_32_changed(self.show_32.isChecked())
+
+    def _show_32_changed(self, on: bool) -> None:
+        self.table.setColumnHidden(5, self.mode.is_16bit and not on)
 
     def refresh(self, registers: dict[str, int], before: dict[str, int]) -> None:
         if not registers:

@@ -1,4 +1,5 @@
 ; Reads a number n and prints n! (n factorial) with a recursive procedure.
+; Level: Intermediate
 ; Watch the Stack window while stepping: each call pushes n, a return
 ; address and the old EBP.
 INCLUDE Irvine32.inc

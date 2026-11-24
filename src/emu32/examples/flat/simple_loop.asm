@@ -1,4 +1,5 @@
 ; Counts from 1 to 9 with LOOP and prints each digit with int 21h.
+; Level: Basic
 .386
 .model flat
 
