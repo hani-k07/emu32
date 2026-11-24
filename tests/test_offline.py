@@ -53,3 +53,23 @@ def test_self_test_guard_records_and_blocks_connections(monkeypatch):
     with pytest.raises(OSError, match="offline"):
         socket.getaddrinfo("example.org", 80)
     assert len(attempts) == 2
+
+
+def test_self_test_passes_from_source(tmp_path):
+    """The release build runs `emu32 --self-test`; run the same check here, so a moved
+    example or a missing package file fails in CI before a release is built."""
+    import os
+    import subprocess
+    import sys
+
+    env = dict(os.environ, EMU32_HOME=str(tmp_path))
+    result = subprocess.run(
+        [sys.executable, "-m", "emu32", "--self-test"], env=env, timeout=120, check=False
+    )
+    log = (
+        (tmp_path / "emu32.log").read_text(encoding="utf-8")
+        if (tmp_path / "emu32.log").exists()
+        else ""
+    )
+    assert result.returncode == 0, log
+    assert "self-test: passed" in log

@@ -42,19 +42,28 @@ def self_test() -> int:
 
         from PySide6.QtWidgets import QApplication
 
-        from emu32.gui.editor_window import EditorWindow
+        from emu32.gui.editor_window import EditorWindow, examples
         from emu32.gui.emulator_window import EmulatorWindow
         from emu32.session import Session
 
-        example = resources.files("emu32") / "examples" / "sum_array.asm"
-        source = example.read_text(encoding="utf-8")
-        session = Session()
-        session.load(source)
-        session.run()
-        output = session.console.output()
-        if output != "Sum: 100\n":
-            write_log(f"self-test: example printed {output!r}")
+        # One COM and one 32-bit example; the list also proves every folder was packaged.
+        groups = {example.group for example in examples()}
+        if groups != {"com", "exe", "flat"}:
+            write_log(f"self-test: example folders found: {sorted(groups)}")
             return 1
+        folder = resources.files("emu32") / "examples"
+        for name, expected in (
+            ("com/sum_array.asm", "Sum: 100"),
+            ("flat/sum_array.asm", "Sum: 100\n"),
+        ):
+            source = (folder / name).read_text(encoding="utf-8")
+            session = Session()
+            session.load(source)
+            session.run()
+            output = session.console.output()
+            if output != expected:
+                write_log(f"self-test: {name} printed {output!r}")
+                return 1
         app = QApplication([])
         editor, emulator = EditorWindow(), EmulatorWindow()
         ok = emulator.load_source(source) and editor.act["compile"].isEnabled()
