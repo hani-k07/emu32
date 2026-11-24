@@ -151,8 +151,7 @@ says it wins; each needs a yes or no before it is changed.
 1. **Default program model.** Spec: COM. Current: flat with Irvine32 (the Visual Studio goal).
 2. **Default theme.** Spec: dark. Answered: dark (D82).
 3. **Release layout.** Answered: one zip as the spec says (D83).
-4. **`max_steps` default.** Spec: 1,000,000. Current: 100,000,000, because an ordinary
-   student program hit the 1,000,000 limit (D65). Proposal: keep it.
+4. **`max_steps` default.** Answered: keep 100,000,000 (D65, confirmed as D84).
 5. **Icon set.** Spec: a third-party set such as Lucide or Tabler. Current: original drawn
    icons, which need no license. Proposal: keep them.
 

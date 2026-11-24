@@ -835,3 +835,9 @@ folder (the program with `portable.txt`, so settings and autosave stay next to i
 SHA-256. The verify jobs check that exact top-level list, run `portable\emu32.exe` where it
 was unpacked, and install, run and uninstall the setup, on three Windows images.
 Supersedes D67.
+
+## D84. The 100,000,000-instruction run limit stays (2026-11-24)
+
+The owner kept D65's default over the master specification's 1,000,000 (spec 4.1 rule 5):
+an ordinary student program with a delay loop runs about 50 million instructions. The
+limit stays configurable in Options, and Stop works at any time.
