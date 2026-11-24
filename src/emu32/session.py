@@ -160,6 +160,7 @@ class Session:
             if target is not None:
                 self.emulator.add_breakpoint(program.line_to_address[target])
         self.console.clear()
+        self.console.screen.line_feed_returns = not self.mode.is_16bit
         self.history.clear()
         self.trace.clear()
         with self.lock:
@@ -233,6 +234,8 @@ class Session:
         fpu_before = emu.fpu_state()
         insn = self._decode(before[ip])
         snapshot = (emu.total_steps, emu.exited, self.console.length())
+        screen = self.console.screen
+        screen.begin_step()
         emu.start_recording()
         try:
             result = emu.step()
@@ -243,9 +246,12 @@ class Session:
                 result = replace(more, steps=result.steps + more.steps)
         finally:
             accesses = tuple(emu.stop_recording())
+            screen_before = screen.end_step()
         writes = tuple(a for a in accesses if a.kind == "write")
         if result.steps or writes:
-            self.history.push(HistoryEntry(before, writes, *snapshot, fpu=fpu_before))
+            self.history.push(
+                HistoryEntry(before, writes, *snapshot, fpu=fpu_before, screen=screen_before)
+            )
         record = None
         if insn is not None:
             after = emu.registers()
@@ -348,6 +354,8 @@ class Session:
             return False
         undo(self.emulator, entry)
         self.console.truncate(entry.console_length)
+        if entry.screen is not None:
+            self.console.screen.restore(entry.screen)
         ip = self.mode.instruction_pointer
         if self.trace and self.trace[-1].address == entry.registers[ip]:
             self.trace.pop()

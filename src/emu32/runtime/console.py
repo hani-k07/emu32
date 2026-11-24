@@ -9,6 +9,8 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 
+from emu32.runtime.screen import TextScreen
+
 # DOS-era code page, so programs that print box-drawing bytes show what students expect.
 ENCODING = "cp437"
 
@@ -19,7 +21,8 @@ class InputCancelled(Exception):  # noqa: N818 - control signal
 
 class Console:
     def __init__(self) -> None:
-        self._output: list[str] = []
+        self._output: list[str] = []  # the plain log (Output tab, tests)
+        self.screen = TextScreen()  # the 80 x 25 screen
         self._input = ""
         self._cancelled = False
         self._cond = threading.Condition()
@@ -31,7 +34,9 @@ class Console:
     # Output
 
     def write(self, text: str) -> None:
-        # Carriage returns only matter with a line feed after them, so they are dropped.
+        if text:
+            self.screen.teletype(text)
+        # In the log, carriage returns only matter with a line feed after them; dropped.
         text = text.replace("\r", "")
         if not text:
             return
@@ -42,12 +47,21 @@ class Console:
     def write_bytes(self, data: bytes) -> None:
         self.write(data.decode(ENCODING))
 
+    def log(self, text: str) -> None:
+        """Text for the log only, when a service placed it on the screen itself."""
+        text = text.replace("\r", "")
+        if text:
+            self._output.append(text)
+            if self.on_output:
+                self.on_output(text)
+
     def output(self) -> str:
         return "".join(self._output)
 
     def clear_output(self) -> None:
         """Clear the screen (Clrscr). Typed input that is not read yet stays."""
         self._output.clear()
+        self.screen.clear()
         if self.on_output:
             self.on_output("")
 
@@ -74,6 +88,7 @@ class Console:
     def clear(self) -> None:
         with self._cond:
             self._output.clear()
+            self.screen = TextScreen()
             self._input = ""
             self._cancelled = False
 

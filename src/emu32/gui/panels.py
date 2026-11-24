@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import struct
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QSize, Qt, Signal
+from PySide6.QtGui import QColor, QFontDatabase, QFontMetrics, QPainter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QHBoxLayout,
@@ -15,8 +15,10 @@ from PySide6.QtWidgets import (
     QListWidget,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -26,6 +28,8 @@ from emu32.emulator.core import extended_to_float
 from emu32.gui import theme
 from emu32.gui.code_editor import CodeEditor
 from emu32.gui.models import CHANGED_MARK
+from emu32.gui.theme.text_screen import TEXT_SCREEN_COLORS
+from emu32.runtime.screen import COLUMNS, ROWS
 
 FLAG_MEANINGS = {
     "CF": "carry",
@@ -343,16 +347,106 @@ class VarsPanel(QWidget):
         self._previous = {}
 
 
-class ScreenPanel(QWidget):
-    """Program output, and a line for typed input."""
+_KEYS = {Qt.Key_Return: "\n", Qt.Key_Enter: "\n", Qt.Key_Backspace: "\b",
+         Qt.Key_Tab: "\t", Qt.Key_Escape: "\x1b"}  # fmt: skip
 
-    submitted = Signal(str)
+
+class TextScreenView(QWidget):
+    """The 80 x 25 screen, drawn from a snapshot of the program's TextScreen. Keys pressed
+    while it has focus go to the program."""
+
+    typed = Signal(str)
 
     def __init__(self) -> None:
         super().__init__()
+        self.setFont(fixed_font())
+        self.setFocusPolicy(Qt.StrongFocus)
+        self.setToolTip("The program's 80 x 25 screen. Click it, then type to send keys.")
+        self.cells: tuple = ((" ", 0x07),) * (COLUMNS * ROWS)
+        self.cursor = (0, 0)
+        self.version = -1
+        self._colors = [QColor(value) for value in TEXT_SCREEN_COLORS]
+
+    def _cell_size(self) -> tuple[int, int]:
+        metrics = QFontMetrics(self.font())
+        return metrics.horizontalAdvance("M"), metrics.height()
+
+    def sizeHint(self) -> QSize:  # noqa: N802 - Qt override
+        width, height = self._cell_size()
+        return QSize(width * COLUMNS, height * ROWS)
+
+    minimumSizeHint = sizeHint  # noqa: N815 - Qt override
+
+    def show_state(self, version: int, state: tuple) -> None:
+        if version == self.version:
+            return
+        self.version = version
+        cells, row, column, _attribute = state
+        self.cells, self.cursor = cells, (row, column)
+        self.updateGeometry()
+        self.update()
+
+    def text(self) -> str:
+        lines = [
+            "".join(c for c, _a in self.cells[r * COLUMNS : (r + 1) * COLUMNS]).rstrip()
+            for r in range(ROWS)
+        ]
+        return "\n".join(lines).rstrip("\n")
+
+    def paintEvent(self, _event) -> None:  # noqa: N802 - Qt override
+        width, height = self._cell_size()
+        ascent = QFontMetrics(self.font()).ascent()
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), self._colors[0])
+        for row in range(ROWS):
+            y = row * height
+            for column in range(COLUMNS):
+                char, attribute = self.cells[row * COLUMNS + column]
+                x = column * width
+                background = (attribute >> 4) & 0x07
+                if background:
+                    painter.fillRect(x, y, width, height, self._colors[background])
+                if char != " ":
+                    painter.setPen(self._colors[attribute & 0x0F])
+                    painter.drawText(x, y + ascent, char)
+        row, column = self.cursor
+        attribute = self.cells[row * COLUMNS + column][1]
+        painter.fillRect(
+            column * width, row * height + height - 2, width, 2, self._colors[attribute & 0x0F or 7]
+        )
+        if self.hasFocus():
+            painter.setPen(theme.color("accent"))
+            painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        painter.end()
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802 - Qt override
+        text = _KEYS.get(event.key()) or event.text()
+        if text and (text in _KEYS.values() or text.isprintable()):
+            self.typed.emit(text)
+            return
+        super().keyPressEvent(event)
+
+
+class ScreenPanel(QWidget):
+    """The program's 80 x 25 screen, its output as plain text, and a line for typed input."""
+
+    submitted = Signal(str)
+    typed = Signal(str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.view = TextScreenView()
+        self.view.typed.connect(self.typed)
+        scroll = QScrollArea()
+        scroll.setWidget(self.view)
+        scroll.setAlignment(Qt.AlignLeft | Qt.AlignTop)
         self.output = QPlainTextEdit()
         self.output.setReadOnly(True)
         self.output.setFont(fixed_font())
+        self.output.setToolTip("Everything the program printed, as text you can copy.")
+        self.tabs = QTabWidget()
+        self.tabs.addTab(scroll, "Screen")
+        self.tabs.addTab(self.output, "Output")
         self.input = QLineEdit()
         self.input.setPlaceholderText("Type input for the program and press Enter")
         self.send = QPushButton("&Send")
@@ -362,7 +456,7 @@ class ScreenPanel(QWidget):
         row.addWidget(self.send)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.output)
+        layout.addWidget(self.tabs)
         layout.addLayout(row)
         layout.addWidget(self.status)
         self.input.returnPressed.connect(self._submit)
@@ -384,9 +478,13 @@ class ScreenPanel(QWidget):
         cursor.insertText(text)
         self.output.setTextCursor(cursor)
 
+    def show_screen(self, screen) -> None:
+        """Redraw the grid if the program's screen changed."""
+        self.view.show_state(screen.version, screen.state())
+
     def set_waiting(self, waiting: bool) -> None:
         self.status.setText("Waiting for input" if waiting else "")
-        if waiting:
+        if waiting and not self.view.hasFocus():
             self.input.setFocus()
 
 

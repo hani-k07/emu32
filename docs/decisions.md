@@ -867,3 +867,28 @@ The P0 and most P1 services of spec 8.2 are in (`runtime/services_int21.py`,
   screen and come with it.
 - An interrupt or function without a service stops the program with the spec's wording,
   "int XXh function YYh is not supported yet", at the `int` line.
+
+## D87. The 80 x 25 text screen (2026-11-24)
+
+`runtime/screen.py` keeps the screen without Qt: 2,000 cells of (character, color byte),
+a cursor and the color for new text. Every console write goes through it as a teletype
+(CR to column 0, BS back, TAB to the next multiple of 8, BEL ignored, wrap at column 80,
+scroll at row 25); the plain log stays as before for the Output tab, tests and copying.
+`int 10h` 02h, 03h, 06h, 09h and 13h and the flat library's Gotoxy and SetTextColor
+(no-ops before) draw on it directly. Services that place text themselves (09h, 13h) add
+it to the log too.
+
+Line feed: on a PC a line feed only moves down, and DOS programs print CR LF; a Windows
+console also returns to column 0. The screen follows the program model (COM/EXE: down
+only; flat: new line), so lab programs look as they would in DOS and Visual Studio
+programs as in a console window.
+
+Step back: the screen saves itself at its first change in a single step, and the history
+entry keeps that copy only for steps that changed the screen (about 2,000 cells), so
+10,000 steps without output cost nothing extra.
+
+The panel draws the cells with QPainter in the usual VGA text palette
+(`gui/theme/text_screen.py`, the same in every theme because they are the program's
+colors). Keys typed while the grid has focus go to the program one by one; the line box
+below stays for typing whole lines. Background bit 7 (blink) is drawn as a plain
+background.

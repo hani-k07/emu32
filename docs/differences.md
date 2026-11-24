@@ -19,8 +19,9 @@ there is one, the supported form.
 - **Library routines for most I/O.** Console output and input use routines such as
   `WriteString` and `ReadInt`. A small set of `int 21h` services is provided for programs
   written in the DOS style.
-- **No video memory or graphics modes.** `int 10h` covers teletype output and clearing
-  the screen; `in` and `out` read 0 and do nothing.
+- **No video memory or graphics modes.** The 80 x 25 text screen is drawn by `int 10h`
+  and the DOS output services, not through memory at `B800:0000`; one page only, no
+  blinking, background colors 0-7. `in` and `out` read 0 and do nothing.
 - **Memory protection.** Code is read-only and data cannot be executed. Writing into the code
   area or jumping into data stops the program with a message.
 
@@ -57,8 +58,8 @@ there is one, the supported form.
 
 - `int 21h` supports functions 01h, 02h, 06h, 07h, 08h, 09h, 0Ah, 2Ah, 2Ch and 4Ch as in
   DOS, plus 40h, which in emu32 prints EDX as a signed decimal (in DOS, 40h writes to a
-  file). `int 10h` supports 00h and 0Eh, `int 16h` 00h and 01h, and `int 20h` ends the
-  program. Other functions stop the program with "int XXh function YYh is not supported
+  file). `int 10h` supports 00h, 02h, 03h, 06h, 09h, 0Eh and 13h, `int 16h` 00h and 01h,
+  and `int 20h` ends the program. Other functions stop the program with "int XXh function YYh is not supported
   yet".
 - Text typed into the Screen window has no key positions; `int 16h` gives each character
   the US-keyboard scan code of the key that types it, or 0.
