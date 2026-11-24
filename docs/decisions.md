@@ -825,3 +825,13 @@ without a saved choice uses dark; a theme picked in Options is remembered as bef
 anyone who chose light keeps it. The system setting is not followed: the owner asked for
 dark, and the spec allows following the system only "if it can be detected reliably".
 Supersedes D77.
+
+## D83. One release zip with a portable folder (2026-11-24)
+
+The owner chose the master specification's layout (15.1) over D67's two zips. Each release
+has one asset, `emu32-<version>-windows.zip`, holding `emu32-setup.exe`, a `portable`
+folder (the program with `portable.txt`, so settings and autosave stay next to it),
+`README.txt`, `LICENSE` and `THIRD_PARTY_NOTICES.md`. The release notes give the zip's
+SHA-256. The verify jobs check that exact top-level list, run `portable\emu32.exe` where it
+was unpacked, and install, run and uninstall the setup, on three Windows images.
+Supersedes D67.
