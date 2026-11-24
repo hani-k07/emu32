@@ -343,6 +343,7 @@ class EmulatorWindow(QMainWindow):
         self.runner.output.connect(self._output)
         self.runner.waiting.connect(self._waiting)
         self.screen.submitted.connect(lambda text: self.session.console.feed(text + "\n"))
+        self.screen.typed.connect(self.session_feed)
         self.registers.edit_requested.connect(self.edit_register)
         self.address_box.returnPressed.connect(self.show_address)
         self.disassembly_view.doubleClicked.connect(self._disassembly_double_clicked)
@@ -511,6 +512,11 @@ class EmulatorWindow(QMainWindow):
             self.show_screen()
         else:  # Clrscr
             self.screen.set_text(self.session.console.output())
+        self.screen.show_screen(self.session.console.screen)
+
+    def session_feed(self, text: str) -> None:
+        """Keys typed on the screen grid go to the program."""
+        self.session.console.feed(text)
 
     def show_screen(self) -> None:
         dock = self.docks["Screen"]
@@ -530,6 +536,7 @@ class EmulatorWindow(QMainWindow):
             finally:
                 self.session.lock.release()
             return
+        self.screen.show_screen(self.session.console.screen)  # it has its own lock
         registers, steps = self.session.live
         self.registers.refresh(registers, self.before_registers)
         self.aux.counter.setText(f"Instructions executed: {steps:,}")
@@ -558,6 +565,7 @@ class EmulatorWindow(QMainWindow):
             emu.total_steps, session.trace, self.mode.format_address, emu.steps_approximate
         )
         self.screen.set_text(session.console.output())
+        self.screen.show_screen(session.console.screen)
         start = (
             self.memory_model.start
             if self.memory_model.values

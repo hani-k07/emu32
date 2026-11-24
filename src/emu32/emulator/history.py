@@ -18,6 +18,7 @@ class HistoryEntry:
     exited: bool
     console_length: int
     fpu: tuple | None = None
+    screen: tuple | None = None  # the text screen before the step, if the step changed it
 
 
 class History:

@@ -220,10 +220,28 @@ buffer address goes in DX; in 32-bit flat programs, in EDX.
 |---|---|---|
 | `int 10h` | `0Eh` | prints the character in AL |
 | `int 10h` | `00h` | sets a video mode, which clears the screen |
+| `int 10h` | `02h` | moves the cursor to row DH, column DL (0-24, 0-79) |
+| `int 10h` | `03h` | gives the cursor position in DH, DL |
+| `int 10h` | `06h` | scrolls a window up by AL lines (0 clears it); BH is the color of new lines; CH, CL is the top left, DH, DL the bottom right |
+| `int 10h` | `09h` | writes AL in color BL, CX times, at the cursor; the cursor stays |
+| `int 10h` | `13h` | writes CX characters from BP (flat: EBP) at row DH, column DL in color BL; AL bit 0 moves the cursor, bit 1 means each character is followed by its color |
 | `int 16h` | `00h` | waits for a key: AH = scan code, AL = character |
 | `int 16h` | `01h` | checks for a key: ZF = 1 if none, else AX = the key, which stays for the next read |
 
 Any other function stops the program with "int XXh function YYh is not supported yet".
+
+## The screen
+
+The Screen window shows the program's 80 x 25 text screen with its colors; the Output tab
+next to it has everything the program printed as plain text you can copy. A color is one
+byte: the low 4 bits are the text color, bits 4-6 the background (0 black, 1 blue,
+2 green, 3 cyan, 4 red, 5 magenta, 6 brown, 7 light gray; 8-15 are the bright versions,
+for text only). `1Eh` is yellow on blue.
+
+As on a PC, a line feed (10) in a COM or EXE program only moves the cursor down; print 13
+and then 10 to start a new line. In 32-bit flat programs a line feed also goes back to
+the start of the line, as in a Windows console. Click the screen and type to send keys to
+the program, or type a line in the box below it and press Enter.
 
 ## Decision directives
 

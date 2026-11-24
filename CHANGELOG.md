@@ -4,6 +4,16 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.15.0 (2026-11-24)
+
+- New: the Screen window is an 80 x 25 text screen with a cursor and 16 colors. The plain
+  text of everything printed is in the Output tab next to it. Click the screen and type
+  to send keys to the program.
+- New `int 10h` services: 02h and 03h (set and read the cursor), 06h (scroll or clear a
+  window), 09h (character with color), 13h (string with colors).
+- New: the library routines Gotoxy and SetTextColor move the cursor and set the color.
+- Step back restores the screen.
+
 ## 0.14.0 (2026-11-24)
 
 - New DOS services: `int 21h` 0Ah (read a line into a buffer), 06h (direct console I/O),

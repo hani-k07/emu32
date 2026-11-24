@@ -289,8 +289,14 @@ def _clrscr(emu: Emulator, con: Console) -> None:
     con.clear_output()
 
 
-def _ignore(emu: Emulator, con: Console) -> None:
-    """Text color and cursor position have no meaning in the plain-text Screen window."""
+def _gotoxy(emu: Emulator, con: Console) -> None:
+    """Gotoxy: DH = row, DL = column."""
+    con.screen.set_cursor(emu.register("DH"), emu.register("DL"))
+
+
+def _set_text_color(emu: Emulator, con: Console) -> None:
+    """SetTextColor: EAX = foreground + background * 16."""
+    con.screen.set_attribute(emu.register("EAX") & 0xFF)
 
 
 def _wait_msg(emu: Emulator, con: Console) -> None:
@@ -407,8 +413,8 @@ ROUTINES: dict[str, Routine] = {
     "randomrange": _random_range,
     "delay": _delay,
     "clrscr": _clrscr,
-    "settextcolor": _ignore,
-    "gotoxy": _ignore,
+    "settextcolor": _set_text_color,
+    "gotoxy": _gotoxy,
     "waitmsg": _wait_msg,
     "isdigit": _is_digit,
     "getmseconds": _get_mseconds,
