@@ -384,6 +384,8 @@ class EmulatorWindow(QMainWindow):
         return True
 
     def _after_load(self) -> None:
+        if self.session.mode is not self.mode:
+            self._apply_model(self.session.mode)
         self.before_registers, self.before_flags = {}, {}
         self.memory_model.show(0, [])
         self._set_busy(False)  # enables Run, Step, Reload and Reset now that a program is in
@@ -559,7 +561,7 @@ class EmulatorWindow(QMainWindow):
         start = (
             self.memory_model.start
             if self.memory_model.values
-            else self._window_for(self.mode.region("data").start)
+            else self._window_for(self._data_start())
         )
         self.memory_model.show(start, session.read_bytes(start, MemoryModel.WINDOW))
         self.disassembly_model.show(session.listing(), eip, frozenset(emu.breakpoints))
@@ -577,6 +579,22 @@ class EmulatorWindow(QMainWindow):
                 text = "the program has ended"
             count = count_text(emu.total_steps, emu.steps_approximate)
             self.statusBar().showMessage(f"{text}    instructions: {count}")
+
+    def _apply_model(self, mode) -> None:
+        """Panels for another program model (COM, EXE, flat): register names, address
+        width, stack words."""
+        self.mode = mode
+        fmt = mode.format_address
+        self.registers.set_mode(mode)
+        self.stack.set_mode(mode)
+        self.memory_model.format_address = fmt
+        self.disassembly_model.format_address = fmt
+        self.address_box.setText(fmt(self._data_start()))
+        self.statusBar().showMessage(f"{mode.label} program")
+
+    def _data_start(self) -> int:
+        program = self.session.program
+        return program.data_base if program is not None else self.mode.region("data").start
 
     # Memory, registers, breakpoints
 

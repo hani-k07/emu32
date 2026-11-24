@@ -31,10 +31,19 @@ class DataBuilder:
         self.scope = scope
         self.data = bytearray()
         self.spans: dict[int, tuple[int, int]] = {}  # source line -> (address, size)
+        # COM programs: the address of the current line, set by the assembler, and a
+        # callback that places each line's bytes in the program image.
+        self.cursor: int | None = None
+        self.emit = None
 
     @property
     def here(self) -> int:
-        return self.base + len(self.data)
+        return self.base + len(self.data) if self.cursor is None else self.cursor
+
+    def _placed(self, line: int, blob: bytes) -> None:
+        if self.emit is not None:
+            self.emit(line, bytes(blob))
+            self.cursor += len(blob)
 
     def define(self, line: int, name: str | None, directive: str, operands: str) -> None:
         start = self.here
@@ -56,6 +65,7 @@ class DataBuilder:
             raise AsmError(f"the data section is larger than {self.limit} bytes")
         self.data += blob
         self.spans[line] = (start, len(blob))
+        self._placed(line, blob)
         if name:
             kind = directive if directive in FLOATS else ""
             self.scope.symbols[name] = Symbol(name, start, size, count, directive in SIGNED, kind)
@@ -70,6 +80,7 @@ class DataBuilder:
         self.data += blob
         if line:
             self.spans[line] = (start, len(blob))
+        self._placed(line, blob)
         if name:
             self.scope.symbols[name] = Symbol(name, start, size, count, False, kind)
 

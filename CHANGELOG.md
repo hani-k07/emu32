@@ -4,6 +4,23 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.12.0 (2026-11-24)
+
+COAL-lab programs: COM and EXE programs run as written, and COM is the default.
+
+- New: COM programs (`org 100h` ... `ret`) and EXE programs (`.model small`, `mov ax,
+  @data`, `int 21h/4Ch`). They run as on an 8086 (a 386 in real mode): `call` and `ret`
+  use 2-byte return addresses, so `[bp+4]` is the first parameter; `loop` counts CX
+  (CX = 0 means 65,536 times); string instructions use SI, DI and CX. 32-bit registers
+  still work in the same program.
+- New: the program model is detected from the source (`org`, `.model`, `#make_com#`,
+  `#make_exe#`). The New File dialog offers COM (default), EXE, 32-bit flat and flat with
+  library routines.
+- New: `int 20h` ends a program; `int 21h/09h` reads DS:DX in COM and EXE programs.
+- New: the Registers panel shows AX ... SS, IP and FLAGS with their bytes and their
+  32-bit registers for COM and EXE programs; the Stack panel shows words.
+- New: `xlat` and `retn`; `in` and `out` read 0 with one warning.
+
 ## 0.11.0 (2026-11-17)
 
 - emu32 has a logo: square brackets around a step triangle on a blue tile. It is the icon

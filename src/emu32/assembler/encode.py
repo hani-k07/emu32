@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import bisect
 import re
 from dataclasses import dataclass, field
 
@@ -25,7 +26,7 @@ from emu32.assembler.operands import (
     split_operands,
     substitute_names,
 )
-from emu32.cpu_mode import MODE32, CpuMode
+from emu32.cpu_mode import COM_MODEL, EXE_MODEL, FLAT_MODEL, MODE32, CpuMode
 
 _PREFIXES = {"rep", "repe", "repz", "repne", "repnz", "lock"}
 # Instructions whose operands legitimately differ in size.
@@ -50,10 +51,24 @@ _UNSUPPORTED_WORDS = {
     "segment": "segments are not supported; use .data and .code",
     "assume": "ASSUME is not needed: emu32 uses flat 32-bit memory without segments",
 }
+_MAKE_LINE_RE = re.compile(r"^#make_(\w+)#$")
+_DOS_MODELS = ("tiny", "small", "compact", "medium", "large", "huge")
 _DATA_SEGMENT_HINT = (
     "@data is a 16-bit segment value; 32-bit flat memory has no segments. "
     "Remove 'mov ax, @data' and 'mov ds, ax'"
 )
+
+
+@dataclass(frozen=True)
+class _Layout:
+    """Addresses from one pass of a 16-bit program, used by the next pass: where each
+    source line starts (COM data placement), each entry (instruction or data) and each
+    label (16-bit `call`)."""
+
+    starts: tuple[tuple[int, int], ...]
+    end: int
+    positions: tuple[int, ...]
+    labels: tuple[tuple[str, int], ...]
 
 
 @dataclass
@@ -69,6 +84,10 @@ class Program:
     data_spans: dict[int, tuple[int, int]]
     warnings: list[AsmMessage] = field(default_factory=list)
     mode: CpuMode = MODE32
+    code_base: int = 0x0040_0000
+    data_base: int = 0x0050_0000
+    # COM and EXE: where the previous pass put everything (see _Layout).
+    layout: _Layout | None = None
 
     @property
     def instruction_count(self) -> int:
@@ -76,8 +95,7 @@ class Program:
 
     def listing(self, source: str) -> str:
         """Text listing: line number, address, bytes, source."""
-        code_base = self.mode.region("code").start
-        data_base = self.mode.region("data").start
+        code_base, data_base = self.code_base, self.data_base
         addresses = sorted(self.address_to_line) + [code_base + len(self.code)]
         sizes = {a: b - a for a, b in zip(addresses, addresses[1:], strict=False)}
         rows = []
@@ -88,7 +106,10 @@ class Program:
                 blob = self.code[address - code_base : address - code_base + sizes[address]]
             elif number in self.data_spans:
                 address, size = self.data_spans[number]
-                blob = self.data[address - data_base : address - data_base + size]
+                if self.data:
+                    blob = self.data[address - data_base : address - data_base + size]
+                else:  # COM: data sits inside the code image
+                    blob = self.code[address - code_base : address - code_base + size]
             where = self.mode.format_address(address) if address is not None else ""
             shown = blob[:8].hex(" ").upper() + (" ..." if len(blob) > 8 else "")
             rows.append(f"{number:5}  {where:8}  {shown:27}  {text}")
@@ -124,12 +145,17 @@ class _Item:
     proc: str | None = None
     frame: _Frame | None = None
     invoke: bool = False
+    data: bytes | None = None  # COM: bytes of a data line, placed where the source has it
 
 
 _SIZE_OF_TYPE = {
     "byte": 1, "sbyte": 1, "word": 2, "sword": 2, "dword": 4, "sdword": 4, "qword": 8,
     "real4": 4, "real8": 8, "real10": 10,
 }  # fmt: skip
+_FLAT_ONLY = (
+    "{what} works in 32-bit flat programs; in COM and EXE programs pass parameters with "
+    "PUSH and read them with [bp+4], [bp+6], ..."
+)
 _PROC_ATTRIBUTES = {"near", "far", "public", "private", "stdcall", "c", "pascal"}
 _FRAME_PTR_RE = re.compile(r"^(byte|sbyte|word|sword|dword|sdword)\s+ptr\s+(.*)$")
 
@@ -147,15 +173,24 @@ class _Assembler:
         nasm: bool,
         externals: dict[str, int],
         structs: dict[str, list[StructField]] | None = None,
+        layout: _Layout | None = None,
     ) -> None:
         self.structs = structs or {}
+        self.layout = layout
+        self.image_base = mode.image_base
         self.layouts: dict[str, tuple[int, dict[str, tuple[int, int, int, bytes]]]] = {}
         self.struct_vars: dict[str, str] = {}  # variable -> STRUCT name
         self.mode = mode
         self.nasm = nasm
-        self.scope = Scope(externals=dict(externals))
-        data = mode.region("data")
-        self.data = DataBuilder(data.start, data.size, self.scope)
+        self.scope = Scope(externals={} if mode.is_16bit else dict(externals))
+        if mode.is_16bit:
+            # COM: data goes where the source puts it; EXE: .data first, at 100h.
+            self.data = DataBuilder(mode.image_base, 0xF000, self.scope)
+            if mode.key == "com":
+                self.data.emit = self._emit_data
+        else:
+            data = mode.region("data")
+            self.data = DataBuilder(data.start, data.size, self.scope)
         self.errors: list[AsmMessage] = []
         self.warnings: list[AsmMessage] = []
         self.names: dict[str, int] = {}  # every defined name -> line, to catch duplicates
@@ -167,6 +202,7 @@ class _Assembler:
         self.local_labels: dict[str, set[str]] = {}  # procedure -> its own labels
         self.display: dict[str, str] = {}  # label name given to Keystone -> name shown
         self.end_name: tuple[str, int] | None = None
+        self.io_warned = False
         self.ended = False
 
     # Pass 1: directives, data, constants, labels
@@ -175,12 +211,27 @@ class _Assembler:
         for line in lines:
             if self.ended:
                 break
+            if self.mode.key == "com":
+                self.data.cursor = self._location(line.number)
             try:
                 self._line(line.number, line.text)
             except AsmError as error:
                 self.errors.append(AsmMessage(line.number, error.text))
         for name, number in self.procs:
             self.errors.append(AsmMessage(number, f"procedure '{name}' has no ENDP"))
+
+    def _location(self, number: int) -> int:
+        """COM: the address where source line `number` starts, from the previous pass."""
+        if self.layout is None:
+            return self.image_base
+        starts = self.layout.starts
+        index = bisect.bisect_left(starts, (number, -1))
+        return starts[index][1] if index < len(starts) else self.layout.end
+
+    def _emit_data(self, number: int, blob: bytes) -> None:
+        if self.section != "code" and self.mode.key != "com":
+            return
+        self.items.append(_Item(number, "", data=blob))
 
     def _define(self, name: str, number: int) -> None:
         if name in KEYWORDS or name in MNEMONICS:
@@ -199,8 +250,17 @@ class _Assembler:
         second = words[1] if len(words) > 1 else ""
         rest = text[len(first) :].strip()
 
+        if _MAKE_LINE_RE.match(text) or (first == "name" and second[:1] in "'\""):
+            return  # file-format lines of DOS lab files; the model is already chosen
         if "@data" in names_in(text):
-            raise AsmError(_DATA_SEGMENT_HINT)
+            if not self.mode.is_16bit:
+                raise AsmError(_DATA_SEGMENT_HINT)
+            # Every segment is 0 in COM and EXE programs, so @data is 0 (D81).
+            text = re.sub(r"(?<![\w@?$])@data(?![\w@?$])", "0", text)
+            words = text.split(" ")
+            first = words[0]
+            second = words[1] if len(words) > 1 else ""
+            rest = text[len(first) :].strip()
         for word in (first, second):
             if word in _UNSUPPORTED_WORDS:
                 raise AsmError(_UNSUPPORTED_WORDS[word])
@@ -240,9 +300,7 @@ class _Assembler:
             self._invoke(number, rest)
             return
         if first == "org":
-            self.warnings.append(
-                AsmMessage(number, "ORG is ignored; code starts at the code section")
-            )
+            self._org(number, rest)
             return
         if first == "end":
             self.ended = True
@@ -271,6 +329,21 @@ class _Assembler:
             return
         self._instruction(number, text)
 
+    def _org(self, number: int, rest: str) -> None:
+        if self.mode.key != "com":
+            self.warnings.append(
+                AsmMessage(number, "ORG is ignored; code starts at the code section")
+            )
+            return
+        value = evaluate(rest, self.scope, self.image_base)
+        if self.items or self.data.spans:
+            raise AsmError("ORG must come before the first instruction or data")
+        if not 0 < value < 0xF000:
+            raise AsmError(f"ORG {value:X}h is outside the 64 KB program area")
+        self.image_base = value
+        if self.layout is None:
+            self.data.cursor = value
+
     def _nasm_directive(self, first: str, rest: str) -> bool:
         if first in ("section", "segment"):
             name = rest.split(" ")[0]
@@ -286,7 +359,7 @@ class _Assembler:
         elif word == ".stack" or _CPU_DIRECTIVE_RE.fullmatch(word):
             pass
         elif word == ".model":
-            if not rest.startswith("flat"):
+            if not rest.startswith("flat") and not self.mode.is_16bit:
                 self.warnings.append(
                     AsmMessage(
                         number, f".model {rest} is treated as flat: emu32 runs 32-bit programs"
@@ -329,7 +402,7 @@ class _Assembler:
             name, at = words[0].rstrip(":"), 1
         else:
             return False
-        if self.section != "data":
+        if self.section != "data" and self.mode.key != "com":
             raise AsmError("data definitions belong in the .data section")
         directive, operands = words[at], " ".join(words[at + 1 :])
         if directive == "times":
@@ -460,7 +533,7 @@ class _Assembler:
     def _align(self, boundary: int) -> None:
         if boundary <= 0 or boundary & (boundary - 1):
             raise AsmError(f"ALIGN needs a power of two, not {boundary}")
-        if self.section == "data":
+        if self.section == "data" or self.mode.key == "com":
             pad = -self.data.here % boundary
             if pad:
                 self.data.define_raw(0, None, bytes(pad), 1, pad)
@@ -483,6 +556,8 @@ class _Assembler:
             pname, colon, ptype = (piece.strip() for piece in part.partition(":"))
             if not colon:
                 raise AsmError(f"parameter '{part}' needs a type, for example {part}:DWORD")
+            if self.mode.is_16bit:
+                raise AsmError(_FLAT_ONLY.format(what="PROC parameters"))
             params[pname] = (8 + 4 * index, self._type_size(ptype))
         self._code_label(number, name, scope_global=True)
         self.procs.append((name, number))
@@ -501,6 +576,8 @@ class _Assembler:
         """`LOCAL name:type, buffer[10]:BYTE` right after PROC: space below EBP."""
         if not self.procs:
             raise AsmError("LOCAL belongs inside a PROC")
+        if self.mode.is_16bit:
+            raise AsmError(_FLAT_ONLY.format(what="LOCAL"))
         if self.frame is None:
             name, number = self.procs[-1]
             self.frame = _Frame(name, number, [], {})
@@ -539,7 +616,7 @@ class _Assembler:
         self.frame = None
 
     def _code_label(self, number: int, name: str, scope_global: bool = False) -> None:
-        if self.section != "code":
+        if self.section != "code" and self.mode.key != "com":
             raise AsmError("code labels belong in the .code section")
         proc = self.procs[-1][0] if self.procs else None
         if proc and not scope_global:
@@ -559,12 +636,20 @@ class _Assembler:
         self.display[given] = shown
 
     def _instruction(self, number: int, text: str) -> None:
-        if self.section != "code":
+        if self.section != "code" and self.mode.key != "com":
             raise AsmError("instructions belong in the .code section")
         proc = self.procs[-1][0] if self.procs else None
         frame = self.frame
         self._start_frame()
         mnemonic, _, operand = text.partition(" ")
+        if mnemonic in ("in", "out") and not self.io_warned:
+            self.io_warned = True
+            self.warnings.append(
+                AsmMessage(
+                    number,
+                    "IN and OUT are not connected to devices yet: IN reads 0, OUT does nothing",
+                )
+            )
         if frame is not None and mnemonic == "ret":
             # Undo the prologue, then return and remove the stack parameters (stdcall).
             epilogue = [f"pop {register}" for register in reversed(frame.uses)]
@@ -578,6 +663,8 @@ class _Assembler:
         self.items.append(_Item(number, text, proc=proc, frame=frame))
 
     def _invoke(self, number: int, text: str) -> None:
+        if self.mode.is_16bit:
+            raise AsmError(_FLAT_ONLY.format(what="INVOKE"))
         if self.section != "code":
             raise AsmError("instructions belong in the .code section")
         self._start_frame()
@@ -590,6 +677,11 @@ class _Assembler:
         if item is not None and item.proc and self.local_labels.get(item.proc):
             text = self._rename_local_labels(text, item.proc)
         mnemonic, _, operands = text.partition(" ")
+        # Spellings Keystone does not know (spec 7.4).
+        if mnemonic == "xlat":
+            return "xlatb"
+        if mnemonic == "retn":
+            mnemonic, text = "ret", f"ret {operands}".strip()
         if not operands and mnemonic in self.scope.externals:
             # A routine name used as a statement, as in the course library's `exit`.
             return f"call {hex(self.scope.externals[mnemonic])}"
@@ -669,7 +761,7 @@ class _Assembler:
     def _check_address_fits(self, mnemonic: str, operands: list[str]) -> None:
         """`lea dx, msg` and `mov dx, OFFSET msg` are the 16-bit habit; here addresses are
         32 bits, so DX would get a cut-off address and int 21h would print nothing."""
-        if mnemonic not in ("mov", "lea") or len(operands) != 2:
+        if mnemonic not in ("mov", "lea") or len(operands) != 2 or self.mode.is_16bit:
             return
         dest, source = operands
         bits = REGISTER_BITS.get(dest)
@@ -691,12 +783,18 @@ class _Assembler:
     def second_pass(self) -> Program | None:
         asm: list[str] = []
         instruction_lines: list[int] = []
+        entries: list[tuple[int, int | None]] = []  # (line, data size or None) in order
         label_index: dict[str, int] = {}
         hidden: list[str] = []
         for item in self.items:
             if item.label:
                 asm.append(f"{item.text}:")
-                label_index[self.display[item.text]] = len(instruction_lines)
+                label_index[self.display[item.text]] = len(entries)
+                continue
+            if item.data is not None:
+                if item.data:
+                    asm.append(".byte " + ", ".join(hex(b) for b in item.data))
+                    entries.append((item.line, len(item.data)))
                 continue
             try:
                 texts = self._expand_invoke(item) if item.invoke else [item.text]
@@ -706,6 +804,8 @@ class _Assembler:
                 self.errors.append(AsmMessage(item.line, error.text))
                 continue
             for text in texts:
+                if self.mode.is_16bit:
+                    text = self._fix_16bit(text, len(entries))
                 if _LOCATION_RE.search(map_unquoted(text, lambda p: p)):
                     # Keystone has no `$`; a hidden label before the instruction stands in.
                     here = f"__here_{len(hidden)}"
@@ -714,11 +814,12 @@ class _Assembler:
                     text = map_unquoted(text, lambda part, h=here: _LOCATION_RE.sub(h, part))
                 asm.append(text)
                 instruction_lines.append(item.line)
+                entries.append((item.line, None))
 
         ks = keystone.Ks(keystone.KS_ARCH_X86, self.mode.ks_mode)
         if self.nasm:
             ks.syntax = keystone.KS_OPT_SYNTAX_NASM
-        base = self.mode.region("code").start
+        base, data_base, code_limit = self._bases()
         code = b""
         if not self.errors:
             try:
@@ -731,26 +832,34 @@ class _Assembler:
         if self.errors:
             return None
 
-        if len(code) > self.mode.region("code").size:
+        if len(code) > code_limit:
             line = instruction_lines[-1] if instruction_lines else 0
-            self.errors.append(AsmMessage(line, "the program code is larger than the code section"))
+            limit = "64 KB" if self.mode.is_16bit else "the code section"
+            self.errors.append(AsmMessage(line, f"the program code is larger than {limit}"))
             return None
 
-        cs = capstone.Cs(capstone.CS_ARCH_X86, self.mode.cs_mode)
-        decoded = list(cs.disasm_lite(code, base))
-        if len(decoded) != len(instruction_lines) or sum(d[1] for d in decoded) != len(code):
-            raise AssemblyError(
-                [AsmMessage(0, "internal error: the line map does not match the encoded code")]
-            )
-        addresses = [d[0] for d in decoded]
+        positions = self._positions(code, base, entries)
+        addresses = [a for a, (_line, size) in zip(positions, entries, strict=True) if size is None]
         end = base + len(code)
         labels = {
-            name: addresses[i] if i < len(addresses) else end for name, i in label_index.items()
+            name: positions[i] if i < len(positions) else end for name, i in label_index.items()
         }
+        layout = None
+        if self.mode.is_16bit:
+            first: dict[int, int] = {}
+            for address, (line, _size) in zip(positions, entries, strict=True):
+                first.setdefault(line, address)
+            given = {
+                name: positions[i] if i < len(positions) else end
+                for name, i in ((given, label_index[self.display[given]]) for given in self.labels)
+            }
+            layout = _Layout(
+                tuple(sorted(first.items())), end, tuple(positions), tuple(sorted(given.items()))
+            )
         return Program(
             code=code,
-            data=bytes(self.data.data),
-            entry=self._entry(labels, base),
+            data=b"" if self.mode.key == "com" else bytes(self.data.data),
+            entry=base if self.mode.key == "com" else self._entry(labels, base),
             symbols=dict(self.scope.symbols),
             constants=dict(self.scope.constants),
             labels=labels,
@@ -760,7 +869,72 @@ class _Assembler:
             data_spans=dict(self.data.spans),
             warnings=self.warnings,
             mode=self.mode,
+            code_base=base,
+            data_base=data_base,
+            layout=layout,
         )
+
+    def _fix_16bit(self, text: str, index: int) -> str:
+        """Keystone's 16-bit mode gives `ret` and `call label` their 32-bit forms, which
+        move 4 bytes on the stack, and pushes constants as 4 bytes. 8086 programs need the
+        2-byte forms (`[bp+4]` is the first parameter), so these are encoded here (D81)."""
+        mnemonic, _, operand = text.partition(" ")
+        operand = operand.strip()
+        if mnemonic in ("ret", "retf"):
+            short, long = (0xC3, 0xC2) if mnemonic == "ret" else (0xCB, 0xCA)
+            if not operand:
+                return f".byte {hex(short)}"
+            value = evaluate(operand, self.scope, 0) & 0xFFFF
+            return f".byte {hex(long)}, {hex(value & 0xFF)}, {hex(value >> 8)}"
+        if mnemonic == "push" and re.fullmatch(r"-?(?:0x[0-9a-f]+|\d+)", operand):
+            return f"push word {operand}"
+        if mnemonic == "call" and (
+            operand in self.display or re.fullmatch(r"0x[0-9a-f]+", operand)
+        ):
+            # E8 rel16, with addresses from the previous pass (0 on the first pass, which
+            # only needs the size).
+            rel = 0
+            if self.layout is not None:
+                labels = dict(self.layout.labels)
+                target = labels.get(operand)
+                if target is None:
+                    target = int(operand, 16) if operand.startswith("0x") else 0
+                rel = (target - (self.layout.positions[index] + 3)) & 0xFFFF
+            return f".byte 0xe8, {hex(rel & 0xFF)}, {hex(rel >> 8)}"
+        return text
+
+    def _bases(self) -> tuple[int, int, int]:
+        """Code base, data base and the largest code size for this model."""
+        if self.mode.key == "com":
+            return self.image_base, self.image_base, 0xF000 - self.image_base
+        if self.mode.key == "exe":
+            # .data at 100h, code from the next 16-byte boundary after it (D81).
+            data_base = self.mode.image_base
+            code_base = data_base + -(-len(self.data.data) // 16) * 16
+            return code_base, data_base, 0xF000 - code_base
+        code, data = self.mode.region("code"), self.mode.region("data")
+        return code.start, data.start, code.size
+
+    def _positions(
+        self, code: bytes, base: int, entries: list[tuple[int, int | None]]
+    ) -> list[int]:
+        """Address of every entry: decode instructions one at a time, skip data bytes."""
+        cs = capstone.Cs(capstone.CS_ARCH_X86, self.mode.cs_mode)
+        positions, offset = [], 0
+        for _line, size in entries:
+            positions.append(base + offset)
+            if size is not None:
+                offset += size
+                continue
+            decoded = next(cs.disasm_lite(code[offset : offset + 16], base + offset, 1), None)
+            if decoded is None:
+                break
+            offset += decoded[1]
+        if offset != len(code) or len(positions) != len(entries):
+            raise AssemblyError(
+                [AsmMessage(0, "internal error: the line map does not match the encoded code")]
+            )
+        return positions
 
     def _entry(self, labels: dict[str, int], base: int) -> int:
         if self.end_name:
@@ -780,7 +954,7 @@ class _Assembler:
         """Assemble each instruction alone, with every label defined after it, to find all
         bad lines; Keystone itself stops at the first error without naming its line."""
         tail = "\n".join(f"{name}:" for name in labels)
-        base = self.mode.region("code").start
+        base = self._bases()[0]
         failing = {e.line for e in self.errors}
         texts = [t for t in asm if not t.endswith(":")]
         found = False
@@ -837,22 +1011,63 @@ def _ks_text(error: keystone.KsError) -> str:
     return re.sub(r"\s*\(KS_ERR_\w+\)", "", str(error)).lower()
 
 
+def detect_model(lines: list[SourceLine], intel_syntax: bool = False) -> CpuMode:
+    """The program model a source asks for (spec section 6, D81)."""
+    if intel_syntax:
+        return FLAT_MODEL
+    flat_hint = sections = False
+    for line in lines:
+        text = line.text
+        make = _MAKE_LINE_RE.match(text)
+        if make:
+            return EXE_MODEL if make.group(1) == "exe" else COM_MODEL
+        words = text.split(" ")
+        if words[0] == ".model" and len(words) > 1:
+            model = words[1].rstrip(",")
+            if model == "flat":
+                return FLAT_MODEL
+            if model in _DOS_MODELS:
+                return EXE_MODEL
+        elif words[0] == "org":
+            return COM_MODEL
+        elif _CPU_DIRECTIVE_RE.fullmatch(words[0]) or (
+            words[0] == "include" and len(words) > 1 and "irvine32" in words[1]
+        ):
+            flat_hint = True
+        elif words[0] in (".data", ".code", ".data?", ".const"):
+            sections = True
+    # .data/.code without .model is how the Visual Studio course writes 32-bit programs.
+    return FLAT_MODEL if flat_hint or sections else COM_MODEL
+
+
 def assemble(
     source: str,
     *,
-    mode: CpuMode = MODE32,
+    mode: CpuMode | None = MODE32,
     intel_syntax: bool = False,
     externals: dict[str, int] | None = None,
 ) -> Program:
-    """Assemble source text. Raises AssemblyError listing every problem found."""
+    """Assemble source text. Raises AssemblyError listing every problem found.
+
+    With `mode=None`, the program model is detected from the source."""
     lines, errors = clean(source)
+    if mode is None:
+        mode = detect_model(lines, intel_syntax)
     structs: dict[str, list[StructField]] = {}
     if not intel_syntax:
         lines, structs = preprocess(lines, errors)
-    assembler = _Assembler(mode, intel_syntax, externals or {}, structs)
-    assembler.errors.extend(errors)
-    assembler.first_pass(lines)
-    program = assembler.second_pass()
-    if program is None or assembler.errors:
-        raise AssemblyError(assembler.errors)
-    return program
+    layout = None
+    # A COM program's data sits between its instructions, so data addresses depend on
+    # instruction sizes and the other way round. Each pass uses the previous pass's
+    # addresses; they settle after two or three passes.
+    for _attempt in range(8):
+        assembler = _Assembler(mode, intel_syntax, externals or {}, structs, layout)
+        assembler.errors.extend(errors)
+        assembler.first_pass(lines)
+        program = assembler.second_pass()
+        if program is None or assembler.errors:
+            raise AssemblyError(assembler.errors)
+        if program.layout is None or program.layout == layout:
+            return program
+        layout = program.layout
+    raise AssemblyError([AsmMessage(0, "internal error: the program layout did not settle")])

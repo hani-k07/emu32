@@ -140,7 +140,19 @@ def test_clean_close_removes_autosave(window):
 
 @pytest.mark.parametrize(("key", "intel"), list(TEMPLATES))
 def test_every_template_assembles(key, intel):
-    Session().compile(TEMPLATES[(key, intel)], intel_syntax=intel)
+    # The dialog turns Intel syntax off for COM and EXE programs.
+    intel = intel and key not in ("com", "exe")
+    program = Session().compile(TEMPLATES[(key, intel)], intel_syntax=intel)
+    if key in ("com", "exe"):
+        assert program.mode.key == key
+
+
+def test_new_file_dialog_defaults_to_com(qtbot):
+    dialog = NewFileDialog()
+    qtbot.addWidget(dialog)
+    assert dialog.template_key() == "com"
+    assert dialog.source().lstrip().startswith("; emu32 COM program")
+    assert not dialog.intel.isEnabled()
 
 
 def test_new_file_dialog(qtbot):

@@ -22,10 +22,11 @@ from emu32.assembler import Program, Symbol, assemble
 from emu32.assembler.cleaner import clean_expression
 from emu32.assembler.errors import AsmError
 from emu32.assembler.operands import Scope, apply_operators, evaluate, substitute_names
-from emu32.cpu_mode import MODE32, CpuMode
+from emu32.cpu_mode import FLAT_MODEL, MODE32, CpuMode
 from emu32.emulator import Emulator, EmulatorError, MemoryAccess, RunResult, StopReason
 from emu32.emulator.history import DEFAULT_LIMIT, History, HistoryEntry, undo
 from emu32.runtime import Console
+from emu32.runtime.library_routines import routine_addresses
 
 TRACE_LENGTH = 100
 _ALU = {
@@ -79,10 +80,11 @@ class Session:
         max_steps: int = 100_000_000,
         history_limit: int = DEFAULT_LIMIT,
     ) -> None:
-        self.mode = mode
-        self.emulator = Emulator(mode, max_steps)
         self.console = Console()
-        self._externals = runtime.attach(self.emulator, self.console)
+        # None: each program's model comes from its source (COM, EXE or flat).
+        self.model_override: CpuMode | None = None
+        self._max_steps = max_steps
+        self._use_model(mode)
         self.program: Program | None = None
         self.source: str | None = None
         self.intel_syntax = False
@@ -91,22 +93,29 @@ class Session:
         self.watches: list[str] = []
         self._breakpoint_lines: set[int] = set()
         self._addresses: list[int] = []
-        self._cs = capstone.Cs(capstone.CS_ARCH_X86, mode.cs_mode)
-        self._cs.detail = True
         self._stop_event = threading.Event()
         # Held while the engine runs. The window reads state only when it can take the lock;
         # otherwise it shows `live`, a snapshot published between chunks of a run.
         self.lock = threading.RLock()
         self.live: tuple[dict[str, int], int] = ({}, 0)
-        self.emulator.on_chunk = self._publish
         self._listing: list[tuple[int, bytes, str, int | None]] = []
+
+    def _use_model(self, mode: CpuMode) -> None:
+        """A fresh engine for another program model (COM, EXE, flat)."""
+        self.mode = mode
+        self.emulator = Emulator(mode, self._max_steps)
+        runtime.attach(self.emulator, self.console)
+        self.emulator.on_chunk = self._publish
+        self._cs = capstone.Cs(capstone.CS_ARCH_X86, mode.cs_mode)
+        self._cs.detail = True
 
     @property
     def max_steps(self) -> int:
-        return self.emulator.max_steps
+        return self._max_steps
 
     @max_steps.setter
     def max_steps(self, value: int) -> None:
+        self._max_steps = value
         self.emulator.max_steps = value
 
     # Program
@@ -114,7 +123,10 @@ class Session:
     def compile(self, source: str, intel_syntax: bool = False) -> Program:
         """Assemble without loading. Raises AssemblyError."""
         return assemble(
-            source, mode=self.mode, intel_syntax=intel_syntax, externals=self._externals
+            source,
+            mode=self.model_override,
+            intel_syntax=intel_syntax,
+            externals=routine_addresses(FLAT_MODEL),
         )
 
     def load(self, source: str, intel_syntax: bool = False) -> Program:
@@ -134,6 +146,11 @@ class Session:
         self._start(self._require())
 
     def _start(self, program: Program) -> None:
+        if program.mode is not self.mode:
+            breakpoints = self.emulator.breakpoints
+            self._use_model(program.mode)
+            for address in breakpoints:
+                self.emulator.add_breakpoint(address)
         self.program = program
         self._addresses = sorted(program.address_to_line)
         for address in self.emulator.breakpoints:
@@ -146,7 +163,9 @@ class Session:
         self.history.clear()
         self.trace.clear()
         with self.lock:
-            self.emulator.load(program.code, program.data, program.entry)
+            self.emulator.load(
+                program.code, program.data, program.entry, program.code_base, program.data_base
+            )
         self._listing = []
         self._publish()
 
@@ -161,7 +180,7 @@ class Session:
         """Source line of the instruction at or containing `address`."""
         if self.program is None or address is None or not self._addresses:
             return None
-        end = self.mode.region("code").start + len(self.program.code)
+        end = self.program.code_base + len(self.program.code)
         if not self._addresses[0] <= address < end:
             return None
         index = bisect.bisect_right(self._addresses, address) - 1
@@ -233,7 +252,7 @@ class Session:
             record = TraceRecord(
                 address=insn.address,
                 data=bytes(insn.bytes),
-                text=f"{insn.mnemonic} {insn.op_str}".strip(),
+                text=f"{self._mnemonic(insn)} {insn.op_str}".strip(),
                 line=self.line_of(insn.address),
                 before=before,
                 after=after,
@@ -379,19 +398,24 @@ class Session:
         """The program's instructions: (address, bytes, text, source line)."""
         program = self._require()
         if not self._listing:
-            base = self.mode.region("code").start
+            base = program.code_base
             # Jump and call targets show as label or routine names instead of addresses.
             names = {hex(address): label for label, address in program.labels.items()}
-            names |= {
-                hex(address): runtime.library_routines.DISPLAY_NAMES[name]
-                for name, address in self._externals.items()
-            }
-            self._listing = [
-                (insn.address, bytes(insn.bytes),
-                 f"{insn.mnemonic} {names.get(insn.op_str, insn.op_str)}".strip(),
-                 program.address_to_line.get(insn.address))
-                for insn in self._cs.disasm(program.code, base)
-            ]  # fmt: skip
+            if not self.mode.is_16bit:
+                names |= {
+                    hex(address): runtime.library_routines.DISPLAY_NAMES[name]
+                    for name, address in routine_addresses(self.mode).items()
+                }
+            # Decode only where instructions start: a COM program has data between them.
+            self._listing = []
+            for address in sorted(program.address_to_line):
+                offset = address - base
+                insn = next(self._cs.disasm(program.code[offset : offset + 16], address, 1))
+                self._listing.append(
+                    (insn.address, bytes(insn.bytes),
+                     f"{self._mnemonic(insn)} {names.get(insn.op_str, insn.op_str)}".strip(),
+                     program.address_to_line[address])
+                )  # fmt: skip
         return self._listing
 
     def disassemble(self, address: int, count: int) -> list[tuple[int, bytes, str]]:
@@ -402,13 +426,22 @@ class Session:
             return []
         data = self.emulator.read_memory(address, min(count * 15, region.end - address))
         return [
-            (insn.address, bytes(insn.bytes), f"{insn.mnemonic} {insn.op_str}".strip())
+            (insn.address, bytes(insn.bytes), f"{self._mnemonic(insn)} {insn.op_str}".strip())
             for insn in self._cs.disasm(data, address, count)
         ]
 
     # Decoding and trace details
 
+    def _mnemonic(self, insn: capstone.CsInsn) -> str:
+        # Capstone names 98h and 99h by their 32-bit meaning even in 16-bit mode, where
+        # they are CBW and CWD.
+        if self.mode.is_16bit and len(insn.bytes) == 1:
+            return {0x98: "cbw", 0x99: "cwd"}.get(insn.bytes[0], insn.mnemonic)
+        return insn.mnemonic
+
     def _in_library(self, address: int) -> bool:
+        if self.mode.is_16bit:
+            return False  # COM and EXE programs have no library routines
         return self.mode.region("library_stubs").contains(address)
 
     def _calls_library(self, insn: capstone.CsInsn) -> bool:

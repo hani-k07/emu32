@@ -139,10 +139,10 @@ class Emulator:
         self.exit_code = 0
         self._exit_requested = False
         self._ip = mode.instruction_pointer
-        self._exit = mode.region("exit_stub").start
+        self._exit = mode.return_address
         self._reg_ids = {
             name: getattr(x86_const, f"UC_X86_REG_{name}")
-            for name in (*mode.registers, *mode.sub_registers)
+            for name in (*mode.registers, *mode.sub_registers, *mode.extra_registers)
         }
         self._cs = capstone.Cs(capstone.CS_ARCH_X86, mode.cs_mode)
         self._block_starts: dict[tuple[int, int], list[int]] = {}
@@ -165,37 +165,60 @@ class Emulator:
 
     # Loading
 
-    def load(self, code: bytes, data: bytes = b"", entry: int | None = None) -> None:
+    def load(
+        self,
+        code: bytes,
+        data: bytes = b"",
+        entry: int | None = None,
+        code_base: int | None = None,
+        data_base: int | None = None,
+    ) -> None:
+        """Load a program. A 16-bit model takes the bases from the assembled program;
+        the flat model has fixed code and data regions."""
         mode = self.mode
-        code_region, data_region = mode.region("code"), mode.region("data")
-        for name, blob, region in (("code", code, code_region), ("data", data, data_region)):
-            if len(blob) > region.size:
+        if mode.is_16bit:
+            code_base = mode.image_base if code_base is None else code_base
+            data_base = code_base + len(code) if data_base is None else data_base
+            end = max(code_base + len(code), data_base + len(data))
+            if end > mode.stack_top - 0x100:
                 raise EmulatorError(
-                    f"the program's {name} is {len(blob)} bytes; the limit is {region.size}"
+                    f"the program needs {end:,} bytes; a {mode.label} program and its stack "
+                    "must fit in 64 KB"
                 )
+        else:
+            code_region, data_region = mode.region("code"), mode.region("data")
+            for name, blob, region in (
+                ("code", code, code_region),
+                ("data", data, data_region),
+            ):
+                if len(blob) > region.size:
+                    raise EmulatorError(
+                        f"the program's {name} is {len(blob)} bytes; the limit is {region.size}"
+                    )
+            code_base, data_base = code_region.start, data_region.start
         self._recording = None
         self._block_starts.clear()
         # HLT ends the program. A one-address hook on each HLT notices it in fast runs too,
         # where no block hook is there to say how a chunk ended.
         self._hlt_addresses = [
             address
-            for address, _size, mnemonic, _ops in self._cs.disasm_lite(code, code_region.start)
+            for address, _size, mnemonic, _ops in self._cs.disasm_lite(code, code_base)
             if mnemonic == "hlt"
         ]
         self._new_engine()
         uc = self.uc
-        uc.mem_write(code_region.start, code)
-        uc.mem_write(data_region.start, data)
+        uc.mem_write(code_base, code)
+        uc.mem_write(data_base, data)
 
-        # `ret` from the entry procedure lands on the exit stub, which ends the program.
-        sp = mode.region("stack").end - mode.word_size
+        # `ret` from the entry procedure lands on the return address, which ends the program.
+        sp = mode.stack_top - mode.word_size
         uc.mem_write(sp, self._exit.to_bytes(mode.word_size, "little"))
         self.set_register(mode.stack_pointer, sp)
         self.set_register(mode.flags_register, mode.initial_flags)
         # A Windows process starts with the FPU at 53-bit precision, all exceptions masked.
         self.uc.reg_write(x86_const.UC_X86_REG_FPCW, WINDOWS_FPU_CONTROL)
         self.uc.reg_write(x86_const.UC_X86_REG_FPTAG, 0xFFFF)  # every register empty
-        self.set_register(self._ip, code_region.start if entry is None else entry)
+        self.set_register(self._ip, code_base if entry is None else entry)
         self.total_steps = 0
         self.steps_approximate = False
         self.exited = False
@@ -207,7 +230,8 @@ class Emulator:
         uc = unicorn.Uc(unicorn.UC_ARCH_X86, self.mode.uc_mode)
         for region in self.mode.regions:
             uc.mem_map(region.start, region.size, region.perms)
-        uc.mem_write(self._exit, bytes([HLT]))
+        for address, blob in self.mode.startup_bytes:
+            uc.mem_write(address, blob)
         # A block hook costs far less than a per-instruction hook and still gives an exact
         # instruction count when a run ends partway through a chunk.
         self._block_hook = uc.hook_add(unicorn.UC_HOOK_BLOCK, self._on_block)
@@ -481,11 +505,16 @@ class Emulator:
         return self.uc.reg_read(self._reg_ids[name])
 
     def set_register(self, name: str, value: int) -> None:
-        width = self.mode.sub_registers[name][2] if name in self.mode.sub_registers else None
-        self.uc.reg_write(self._reg_ids[name], value & ((1 << (width or self.mode.bits)) - 1))
+        if name in self.mode.sub_registers:
+            width = self.mode.sub_registers[name][2]
+        else:  # the 32-bit registers of a 16-bit model keep all 32 bits
+            width = 32 if name in self.mode.extra_registers else self.mode.bits
+        self.uc.reg_write(self._reg_ids[name], value & ((1 << width) - 1))
 
     def registers(self) -> dict[str, int]:
-        return {name: self.register(name) for name in self.mode.registers}
+        return {
+            name: self.register(name) for name in (*self.mode.registers, *self.mode.extra_registers)
+        }
 
     def fpu_state(self) -> tuple:
         """The eight x87 data registers and the status, control and tag words."""

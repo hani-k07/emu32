@@ -11,9 +11,12 @@ def attach(emu: Emulator, console: Console) -> dict[str, int]:
 
     Returns the library routine addresses to pass to the assembler as externals.
     """
+    emu.interrupt_handlers[0x20] = lambda e: e.exit_program(0)
     emu.interrupt_handlers[0x21] = lambda e: handle_int21(e, console)
-    emu.setup_hooks.append(lambda e: library_routines.install(e, console))
-    return library_routines.routine_addresses(emu.mode)
+    if not emu.mode.is_16bit:  # the library routines belong to the flat model (spec 8.4)
+        emu.setup_hooks.append(lambda e: library_routines.install(e, console))
+        return library_routines.routine_addresses(emu.mode)
+    return {}
 
 
 __all__ = ["Console", "InputCancelled", "attach"]
