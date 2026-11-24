@@ -114,7 +114,7 @@ the flat-model work, the debugger, the GUI and the release pipeline are done and
 | Default theme dark (10.1) | P1 | Done | dark again since D82 (owner, 2026-11-24) |
 | Bundled monospace font (10.3) | P1 | Missing | `fixed_font()` uses the system font |
 | Change fade and Reduce motion (10.6) | P1 | Partial | marker and highlight present, no fade |
-| Icon set (10.7) | P1 | Differs | original drawn icons (`icons.py`), no third-party set |
+| Icon set (10.7) | P1 | Done | original drawn icons (`icons.py`), owner's choice (D85) |
 | Logo SVG, `.ico`, PNG (10.7) | P1 | Partial | `.ico` and PNG from `gui/logo.py`; no SVG, banner or social preview |
 | HiDPI and 1366 x 768 (10.8) | P1 | Not recorded | |
 | Lab readiness (11): offline, autosave, no tracebacks, UTF-8, portable | P0 | Done | `test_offline.py`, autosave tests, `gui/errors.py`, portable self-test in `release.yml` |
@@ -152,8 +152,7 @@ says it wins; each needs a yes or no before it is changed.
 2. **Default theme.** Spec: dark. Answered: dark (D82).
 3. **Release layout.** Answered: one zip as the spec says (D83).
 4. **`max_steps` default.** Answered: keep 100,000,000 (D65, confirmed as D84).
-5. **Icon set.** Spec: a third-party set such as Lucide or Tabler. Current: original drawn
-   icons, which need no license. Proposal: keep them.
+5. **Icon set.** Answered: keep the original drawn icons (D85).
 
 ## Proposed finishing order
 
