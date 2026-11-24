@@ -36,6 +36,7 @@ def test_blocked_paths():
         "docs/observations/run1/regs.jpg",
         "EMU32-PROMPT.md",
         "PROMPT-v2.md",
+        "EMU32-MASTER-PROMPT.md",
         "a/b/notes.local.md",
         ".env",
         ".env.prod",
