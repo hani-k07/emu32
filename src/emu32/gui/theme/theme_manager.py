@@ -13,7 +13,7 @@ from emu32.gui.theme.tokens import COLOR_TOKENS, UI_POINT_SIZE
 PALETTES = {"dark": dark.PALETTE, "light": light.PALETTE, "contrast": contrast.PALETTE}
 CHOICES = (("dark", "Dark"), ("light", "Light"))  # contrast is projector mode, not a choice
 
-DEFAULT_THEME = "light"  # bright and easy to read in a classroom; Options switches to dark
+DEFAULT_THEME = "dark"  # spec 10.1 (D82); Options switches to light, and it is remembered
 _current = DEFAULT_THEME
 
 

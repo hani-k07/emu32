@@ -51,6 +51,7 @@ def test_compile_success_reports_size_and_instructions(window):
     assert program is not None
     text = window.messages.item(0).text()
     assert f"{len(program.code)} bytes of code" in text and "3 instructions" in text
+    assert "(Flat 32-bit)" in text
 
 
 def test_compile_errors_are_listed_and_jump_to_the_line(window, qtbot):
@@ -232,11 +233,11 @@ def test_theme_switch_at_run_time(window):
     assert window.act["compile"].icon().pixmap(16, 16).toImage() is not None
 
 
-def test_light_is_the_default_theme():
-    """Bright by default for classrooms; dark stays a choice in Options."""
-    assert theme.DEFAULT_THEME == "light"
+def test_dark_is_the_default_theme():
+    """Dark by default (spec 10.1, D82); light stays a choice in Options."""
+    assert theme.DEFAULT_THEME == "dark"
     theme.apply("no-such-theme")
-    assert theme.current_name() == "light"
+    assert theme.current_name() == "dark"
 
 
 def test_unexpected_errors_go_to_the_log(monkeypatch):

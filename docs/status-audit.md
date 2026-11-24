@@ -111,7 +111,7 @@ the flat-model work, the debugger, the GUI and the release pipeline are done and
 | CPU structure window (9.5) | P1 | Done | `cpu_view.py`, `test_tools_and_help.py` |
 | Tools (9.6), Help (9.7), About (9.8) | P1 | Done | `tools.py`, `help_window.py`, `AboutDialog` |
 | Design tokens, themes, contrast (10.1-10.5) | P1 | Done | `gui/theme/`, `check_contrast.py` in CI |
-| Default theme dark (10.1) | P1 | Differs | light is the default since D77, at the owner's request |
+| Default theme dark (10.1) | P1 | Done | dark again since D82 (owner, 2026-11-24) |
 | Bundled monospace font (10.3) | P1 | Missing | `fixed_font()` uses the system font |
 | Change fade and Reduce motion (10.6) | P1 | Partial | marker and highlight present, no fade |
 | Icon set (10.7) | P1 | Differs | original drawn icons (`icons.py`), no third-party set |
@@ -149,7 +149,7 @@ These were made earlier at the owner's request or from measurements. The specifi
 says it wins; each needs a yes or no before it is changed.
 
 1. **Default program model.** Spec: COM. Current: flat with Irvine32 (the Visual Studio goal).
-2. **Default theme.** Spec: dark. Current: light (D77, owner's request).
+2. **Default theme.** Spec: dark. Answered: dark (D82).
 3. **Release layout.** Spec: one zip with `emu32-setup.exe`, `portable/`, README, licenses.
    Current: two zips (D67, owner's request).
 4. **`max_steps` default.** Spec: 1,000,000. Current: 100,000,000, because an ordinary

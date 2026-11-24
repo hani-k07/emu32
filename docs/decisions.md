@@ -817,3 +817,11 @@ COM and EXE programs they give an error that shows the `[bp+4]` way. `USES` work
 16-bit registers. The library routines (WriteString, ...) belong to the flat model.
 `xlat` and `retn` are accepted in every model. `in` and `out` read 0 and do nothing, with
 one warning per program.
+
+## D82. Dark is the default theme again (2026-11-24)
+
+The owner chose the master specification's dark default over D77 (light). Every start
+without a saved choice uses dark; a theme picked in Options is remembered as before, so
+anyone who chose light keeps it. The system setting is not followed: the owner asked for
+dark, and the spec allows following the system only "if it can be detected reliably".
+Supersedes D77.

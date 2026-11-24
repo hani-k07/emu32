@@ -44,6 +44,10 @@ FILE_FILTER = "Assembly files (*.asm *.s *.inc);;All files (*)"
 AUTOSAVE_SECONDS = 20
 
 
+def _count(number: int, word: str) -> str:
+    return f"{number:,} {word}{'' if number == 1 else 's'}"
+
+
 def example_files() -> list[Path]:
     folder = resources.files("emu32") / "examples"
     return sorted(Path(str(p)) for p in folder.iterdir() if p.name.endswith(".asm"))
@@ -466,9 +470,14 @@ class EditorWindow(QMainWindow):
                 doc.go_to_line(error.errors[0].line)
             return None
         doc.set_error_lines(set())
+        code_size, data_size = len(program.code), len(program.data)
+        if program.mode.key == "com":  # data sits inside the image; count it as data
+            data_size = sum(size for _address, size in program.data_spans.values())
+            code_size -= data_size
         summary = (
-            f"Compiled {doc.display_name()}: {len(program.code)} bytes of code, "
-            f"{len(program.data)} bytes of data, {program.instruction_count} instructions"
+            f"Compiled {doc.display_name()} ({program.mode.label}): {_count(code_size, 'byte')} "
+            f"of code, {_count(data_size, 'byte')} of data, "
+            f"{_count(program.instruction_count, 'instruction')}"
         )
         self.messages.addItem(summary)
         for warning in program.warnings:
