@@ -233,6 +233,7 @@ class OptionsDialog(QDialog):
         show_welcome: bool,
         max_steps: int,
         parent: QWidget | None = None,
+        reduce_motion: bool = False,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Options")
@@ -254,6 +255,13 @@ class OptionsDialog(QDialog):
         form.addRow("Editor &font size:", self.font_size)
         form.addRow("&Step limit for Run:", self.max_steps)
         form.addRow(self.show_welcome)
+        self.reduce_motion = QCheckBox("Reduce &motion: changed values stay highlighted")
+        self.reduce_motion.setToolTip(
+            "Without this, the highlight of a value changed by the last step fades out; "
+            "the * marker stays either way."
+        )
+        self.reduce_motion.setChecked(reduce_motion)
+        form.addRow(self.reduce_motion)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)

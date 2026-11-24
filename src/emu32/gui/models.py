@@ -11,6 +11,7 @@ from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
 from PySide6.QtGui import QFont
 
 from emu32.gui import theme
+from emu32.gui.fade import fader
 
 CONTROL_NAMES = [
     "NULL", "SOH", "STX", "ETX", "EOT", "ENQ", "ACK", "BEL", "BS", "TAB", "LF", "VT", "FF",
@@ -54,6 +55,7 @@ class MemoryModel(QAbstractTableModel):
         self.format_address = format_address
         self.start = 0
         self.values: list[int | None] = []
+        fader().models.append(self)
         self.previous: list[int | None] | None = None
 
     def show(self, start: int, values: list[int | None]) -> None:
@@ -62,11 +64,19 @@ class MemoryModel(QAbstractTableModel):
         if start == self.start and len(values) == len(self.values):
             self.previous, self.values = self.values, values
             if self.values:
+                if self.previous != self.values:
+                    fader().restart()
                 self.dataChanged.emit(self.index(0, 0), self.index(len(values) - 1, 4))
             return
         self.beginResetModel()
         self.start, self.values, self.previous = start, values, None
         self.endResetModel()
+
+    def fade_tick(self) -> None:
+        if self.values:
+            self.dataChanged.emit(
+                self.index(0, 0), self.index(len(self.values) - 1, 0), [BACKGROUND]
+            )
 
     def changed(self, row: int) -> bool:
         return self.previous is not None and self.previous[row] != self.values[row]
@@ -96,7 +106,7 @@ class MemoryModel(QAbstractTableModel):
                 return "--"
             return (f"{value:02X}", str(value), char_name(value))[column - 2]
         if role == BACKGROUND and self.changed(row):
-            return theme.color("changed")
+            return fader().color()
         if role == FOREGROUND and column == 1:
             return theme.color("text.muted")
         if role == ALIGNMENT and column in (2, 3):

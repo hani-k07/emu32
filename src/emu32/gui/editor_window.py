@@ -32,7 +32,7 @@ from emu32.assembler import AssemblyError, Program
 from emu32.assembler.cleaner import clean
 from emu32.assembler.encode import detect_model
 from emu32.cpu_mode import MODELS
-from emu32.gui import settings, theme
+from emu32.gui import fade, settings, theme
 from emu32.gui.code_editor import CodeEditor
 from emu32.gui.dialogs import (
     AboutDialog,
@@ -120,6 +120,7 @@ class EditorWindow(QMainWindow):
         super().__init__()
         self.session = session or Session()
         self.session.max_steps = settings.get_int("max_steps", self.session.max_steps)
+        fade.reduce_motion = settings.get_bool("reduce_motion", False)
         self.font_size = settings.get_int("font_size", 11)
         self._untitled = 0
         self.emulator = None
@@ -690,9 +691,12 @@ class EditorWindow(QMainWindow):
             settings.get_bool("show_welcome", True),
             self.session.max_steps,
             self,
+            reduce_motion=fade.reduce_motion,
         )
         if not dialog.exec():
             return
+        fade.reduce_motion = dialog.reduce_motion.isChecked()
+        settings.put("reduce_motion", fade.reduce_motion)
         name = dialog.theme.currentData()
         settings.put("theme", name)
         settings.put("show_welcome", dialog.show_welcome.isChecked())

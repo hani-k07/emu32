@@ -37,6 +37,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 SetupIconFile=..\build\emu32.ico
+; From scripts/make_icon.py; Setup picks the size that fits the screen's scaling.
+WizardImageFile=..\build\wizard\side100.bmp,..\build\wizard\side150.bmp,..\build\wizard\side200.bmp
+WizardSmallImageFile=..\build\wizard\small100.bmp,..\build\wizard\small150.bmp,..\build\wizard\small200.bmp
 UninstallDisplayIcon={app}\emu32.exe
 UninstallDisplayName=emu32 {#AppVersion}
 ChangesAssociations=yes

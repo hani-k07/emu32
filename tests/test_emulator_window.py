@@ -406,3 +406,30 @@ def test_show_32_bit_toggle_in_com_programs(window):
     assert not panel.table.isColumnHidden(5)
     assert window.load_source(LOOP, title="loop.asm")  # flat: the box goes, columns stay
     assert not panel.show_32.isVisibleTo(window) and not panel.table.isColumnHidden(5)
+
+
+def test_changed_highlight_fades_but_the_marker_stays(window, qtbot):
+    from emu32.gui import fade
+
+    assert window.load_source(LOOP, title="loop.asm")
+    window.command("step")
+    finish(qtbot, window)
+    row = register_row(window, "ECX")
+    item = window.registers.table.item(row, 1)
+    marker = window.registers.table.item(row, 0)
+    assert marker.text() == "*"
+    qtbot.waitUntil(lambda: item.background().style() == Qt.NoBrush, timeout=3000)  # faded
+    assert marker.text() == "*"
+    fade.reduce_motion = True
+    try:
+        window.command("step")
+        finish(qtbot, window)
+        qtbot.wait(fade.DURATION_MS + 200)
+        changed = [
+            window.registers.table.item(r, 1)
+            for r in range(window.registers.table.rowCount())
+            if window.registers.table.item(r, 0).text() == "*"
+        ]
+        assert changed and all(i.background().color() == theme.color("changed") for i in changed)
+    finally:
+        fade.reduce_motion = False

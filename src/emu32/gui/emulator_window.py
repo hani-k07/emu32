@@ -178,6 +178,10 @@ class EmulatorWindow(QMainWindow):
             layout.addWidget(widget)
             splitter.addWidget(box)
         splitter.setSizes([360, 330, 510])
+        # On a narrow window Registers keeps its natural width and Disassembly, which has
+        # the most columns, gets most of what is left.
+        for index, stretch in enumerate((0, 1, 2)):
+            splitter.setStretchFactor(index, stretch)
         self.splitter = splitter
 
     def _action(self, text, slot, shortcut=None, enabled=True) -> QAction:
@@ -339,7 +343,7 @@ class EmulatorWindow(QMainWindow):
         self.docks["FPU"].visibilityChanged.connect(lambda shown: shown and self.refresh())
         # Keep the main three columns large on a 1366x768 screen.
         self.resizeDocks([self.docks["Screen"]], [150], Qt.Vertical)
-        self.resizeDocks([self.docks["Source"]], [360], Qt.Horizontal)
+        self.resizeDocks([self.docks["Source"]], [300], Qt.Horizontal)
         self.view_menu.addSeparator()
         self.view_menu.addActions(
             [self.act["cpu"], self.act["uppercase"], self.act["projector"], self.act["zoom_in"],

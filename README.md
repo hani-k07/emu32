@@ -1,6 +1,9 @@
-<p align="center"><img src="docs/images/logo.png" width="112" alt="emu32 logo"></p>
-
-<h1 align="center">emu32</h1>
+<h1 align="center">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="docs/images/banner-dark.svg">
+<img alt="emu32" src="docs/images/banner-light.svg" width="300">
+</picture>
+</h1>
 
 <p align="center"><b>Learn 32-bit x86 assembly by watching it run.</b></p>
 

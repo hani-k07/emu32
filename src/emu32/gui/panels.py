@@ -28,6 +28,7 @@ from emu32.cpu_mode import CpuMode
 from emu32.emulator.core import extended_to_float
 from emu32.gui import theme
 from emu32.gui.code_editor import CodeEditor
+from emu32.gui.fade import fader
 from emu32.gui.models import CHANGED_MARK
 from emu32.gui.theme.text_screen import TEXT_SCREEN_COLORS
 from emu32.runtime.screen import COLUMNS, ROWS
@@ -119,7 +120,9 @@ def set_row(table: QTableWidget, row: int, values: list[str], changed: bool = Fa
             item = QTableWidgetItem()
             table.setItem(row, column, item)
         item.setText(value)
-        item.setData(Qt.BackgroundRole, theme.color("changed") if changed else None)
+        if changed:
+            fader().mark(item)  # the background fades out; the * marker stays
+        item.setData(Qt.BackgroundRole, fader().color() if changed else None)
 
 
 class RegistersPanel(QWidget):
@@ -175,13 +178,17 @@ class RegistersPanel(QWidget):
         self.table.setHorizontalHeaderLabels(columns)
         for column, tip in enumerate(tips, start=2):
             self.table.horizontalHeaderItem(column).setToolTip(tip)
-        # Never narrower than its columns, so the last ones are not cut off.
-        self.table.setMinimumWidth(fit_columns(self.table, widths))
+        self._full_width = fit_columns(self.table, widths)
         self.show_32.setVisible(mode.is_16bit)
         self._show_32_changed(self.show_32.isChecked())
 
     def _show_32_changed(self, on: bool) -> None:
-        self.table.setColumnHidden(5, self.mode.is_16bit and not on)
+        hidden = self.mode.is_16bit and not on
+        self.table.setColumnHidden(5, hidden)
+        # Never narrower than its visible columns, so the last ones are not cut off, and no
+        # wider: a hidden column must not take room from Memory and Disassembly.
+        width = self._full_width - (self.table.columnWidth(5) if hidden else 0)
+        self.table.setMinimumWidth(width)
 
     def refresh(self, registers: dict[str, int], before: dict[str, int]) -> None:
         if not registers:
