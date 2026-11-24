@@ -148,7 +148,7 @@ the flat-model work, the debugger, the GUI and the release pipeline are done and
 These were made earlier at the owner's request or from measurements. The specification
 says it wins; each needs a yes or no before it is changed.
 
-1. **Default program model.** Spec: COM. Current: flat with Irvine32 (the Visual Studio goal).
+1. **Default program model.** Answered: COM, with flat kept (D80, D81).
 2. **Default theme.** Spec: dark. Answered: dark (D82).
 3. **Release layout.** Answered: one zip as the spec says (D83).
 4. **`max_steps` default.** Answered: keep 100,000,000 (D65, confirmed as D84).
