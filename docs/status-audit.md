@@ -1,7 +1,30 @@
-# Status audit (milestone A0)
+# Status audit
 
-Date: 2026-11-24. Audited: `main` at `6d42b1d` (same as `origin/main`), version 0.11.0,
-against the master specification. Nothing was changed for this audit except this file.
+A0 audit: 2026-11-24, `main` at `6d42b1d`, version 0.11.0, against the master
+specification. Updated after each milestone; the latest update is at the end.
+
+## Update after A1 and B1 (version 0.12.0)
+
+- A1: `*PROMPT*.md` is ignored and blocked by the rules script; decision D80 records the
+  owner's choice of COM as the default model.
+- B1 (program models): **Done.** `ProgramModel` with `COM_MODEL`, `EXE_MODEL`,
+  `FLAT_MODEL` in `cpu_mode.py`; COM and EXE run in 16-bit real mode (D81); 64 KB region,
+  `int 20h` at offset 0, 2-byte return address `0000` at FFFEh; hello world runs in all
+  three models (`tests/test_program_models.py`).
+- B2 (assembler): **Partial.** Done: model detection, COM image layout with data in
+  place, EXE layout, `@data` = 0, `#make_com#`/`#make_exe#`/`name "..."`, 8086 behavior
+  (2-byte `call`/`ret`, `loop` on CX, string instructions on SI/DI/CX, `pusha` 16 bytes,
+  `jcxz`), `xlat`/`retn`, `in`/`out` warning, the `[bp+4]` parameter test, 16-bit flag
+  tests. Open: `seg`, `include 'emu8086.inc'` (needs the owner), BCD and every jump
+  mnemonic tested in the COM model, `org` other than at the start.
+- B3: `int 20h` done; `int 21h/09h` reads DS:DX. `0Ah`, `int 10h`, `int 16h`, the 80 x 25
+  screen: still missing.
+- B5/B6: New File dialog offers COM (default), EXE, flat, flat with library, empty; the
+  Registers and Stack panels follow the model. Model selector, status-bar model, run-state
+  pill: still missing.
+- Tests: 460 passed.
+
+## A0 findings
 
 Status words: **Done**, **Partial**, **Missing**, **Broken**. "Evidence" names a test, a file,
 or what was run.

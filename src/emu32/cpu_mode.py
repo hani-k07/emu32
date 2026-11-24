@@ -1,7 +1,9 @@
-"""Facts that differ between CPU modes.
+"""Program models: the facts that differ between COM, EXE and flat 32-bit programs.
 
-Everything else asks a CpuMode for these values instead of assuming 32 bits, so a 16-bit mode
-can be added later by defining a second instance.
+Everything else asks the ProgramModel for these values instead of assuming one layout.
+COM and EXE programs run on the CPU in 16-bit real mode with all segments at 0: the CPU then
+behaves like an 8086 for `call`, `ret`, `loop`, string instructions and stack frames, and
+the 32-bit registers stay usable, as on a 386 (D81).
 """
 
 from __future__ import annotations
@@ -33,7 +35,7 @@ class Region:
 
 
 @dataclass(frozen=True)
-class CpuMode:
+class ProgramModel:
     name: str
     bits: int
     uc_mode: int
@@ -48,10 +50,29 @@ class CpuMode:
     # Partial registers shown next to the main ones: name -> (parent, shift, width in bits).
     sub_registers: dict[str, tuple[str, int, int]]
     regions: tuple[Region, ...]
+    key: str = "flat"  # "com", "exe" or "flat"
+    base_pointer: str = "EBP"
+    # Registers read with every snapshot but not in the main list (the 32-bit registers of
+    # a 16-bit model), so step back restores them and a "Show 32-bit" view can show them.
+    extra_registers: tuple[str, ...] = ()
+    # Where `ret` from the entry procedure goes; reaching it ends the program.
+    return_address: int = 0x0030_0000
+    # Bytes written at load: the exit stub (flat) or `int 20h` at offset 0 (COM, EXE).
+    startup_bytes: tuple[tuple[int, bytes], ...] = ((0x0030_0000, b"\xf4"),)
+    stack_top: int = 0x0080_0000
+    image_base: int = 0x100  # COM: the ORG address; EXE: where .data starts
 
     @property
     def word_size(self) -> int:
         return self.bits // 8
+
+    @property
+    def label(self) -> str:
+        return {"com": "COM", "exe": "EXE"}.get(self.key, "Flat 32-bit")
+
+    @property
+    def is_16bit(self) -> bool:
+        return self.bits == 16
 
     def region(self, name: str) -> Region:
         for region in self.regions:
@@ -81,7 +102,7 @@ def _sub_registers_32() -> dict[str, tuple[str, int, int]]:
     return table
 
 
-MODE32 = CpuMode(
+MODE32 = ProgramModel(
     name="32-bit",
     bits=32,
     uc_mode=unicorn.UC_MODE_32,
@@ -102,3 +123,71 @@ MODE32 = CpuMode(
         Region("stack", 0x0070_0000, 0x10_0000, READ | WRITE),
     ),
 )
+FLAT_MODEL = MODE32
+CpuMode = ProgramModel  # the earlier name, still used across the code
+
+
+def _sub_registers_16() -> dict[str, tuple[str, int, int]]:
+    table = {}
+    for letter in "ABCD":
+        table[f"{letter}H"] = (f"{letter}X", 8, 8)
+        table[f"{letter}L"] = (f"{letter}X", 0, 8)
+    return table
+
+
+def _model_16(key: str) -> ProgramModel:
+    # One 64 KB segment at 0, as a DOS program sees it with every segment register 0.
+    memory = Region("memory", 0, 0x1_0000, READ | WRITE | EXEC)
+    return ProgramModel(
+        name=key.upper(),
+        bits=16,
+        uc_mode=unicorn.UC_MODE_16,
+        ks_mode=keystone.KS_MODE_16,
+        cs_mode=capstone.CS_MODE_16,
+        registers=(
+            "AX",
+            "BX",
+            "CX",
+            "DX",
+            "SI",
+            "DI",
+            "BP",
+            "SP",
+            "IP",
+            "FLAGS",
+            "CS",
+            "DS",
+            "ES",
+            "SS",
+        ),  # fmt: skip
+        instruction_pointer="IP",
+        stack_pointer="SP",
+        flags_register="FLAGS",
+        initial_flags=0x202,
+        sub_registers=_sub_registers_16(),
+        regions=(memory,),
+        key=key,
+        base_pointer="BP",
+        extra_registers=(
+            "EAX",
+            "EBX",
+            "ECX",
+            "EDX",
+            "ESI",
+            "EDI",
+            "EBP",
+            "ESP",
+            "EIP",
+            "EFLAGS",
+        ),  # fmt: skip
+        # A COM program's stack starts with a 0 word, so `ret` jumps to offset 0, where
+        # DOS puts `int 20h` (the start of the PSP).
+        return_address=0,
+        startup_bytes=((0, b"\xcd\x20"),),
+        stack_top=0x1_0000,
+    )
+
+
+COM_MODEL = _model_16("com")
+EXE_MODEL = _model_16("exe")
+MODELS = {"com": COM_MODEL, "exe": EXE_MODEL, "flat": FLAT_MODEL}

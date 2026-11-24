@@ -771,3 +771,49 @@ until the owner decides on each.
 
 The ignore rules and the repository-rules script now block `*PROMPT*.md`, so
 specification files with any prefix stay local.
+
+## D81. COM and EXE programs run in 16-bit real mode (2026-11-24)
+
+The master specification (sections 6 and 7.4) runs every model on the CPU in 32-bit mode
+and makes lab instructions behave like the 8086 by adding prefixes (`0x67` on `loop` and
+string instructions, `0x66` on `call` and `ret`). emu32 instead runs COM and EXE programs
+with Unicorn, Keystone and Capstone in **16-bit mode**, with every segment register 0. This
+is a 386 in real mode: every instruction already has its 8086 meaning (`loop` counts CX,
+`movsb` uses SI and DI, `call` pushes a 2-byte return address, `pusha` pushes 16 bytes,
+jumps wrap at 64 KB), and the 32-bit registers still work through operand-size prefixes,
+which the assembler adds. It covers instructions a prefix list would miss and needs no
+per-instruction rules. Measured with small programs before the change: a `[bp+4]`
+parameter, `loop` with CX = 0 (65,536 iterations, upper half of ECX unchanged), `lodsb`,
+`imul eax, ecx` and `ret` to the `int 20h` at offset 0 all behaved as the 8086/386 manual
+says. Deviation from spec 6.4: segment registers do change addresses in real mode, but
+they are all 0 and `@data` is 0, so lab programs see flat 64 KB as the spec describes; a
+program that loads another segment value (for example `0B800h` for video memory) gets a
+"reads memory outside the program's memory" error.
+
+Keystone's 16-bit mode gives `ret`, `retf` and `call label` their 32-bit forms (`66 C3`,
+`66 E8 rel32`), which move 4 bytes on the stack, and pushes constants as 4 bytes. The
+assembler encodes those itself: `ret` as `C3`/`C2 iw`, `call label` as `E8 rel16`, and
+`push 5` as `push word 5` (`6A 05`). Near jumps keep Keystone's `66 E9 rel32` form, which
+runs correctly in real mode. Capstone names `98h`/`99h` CWDE/CDQ in 16-bit mode; the
+listing shows CBW/CWD.
+
+Layout. COM: one image at the ORG address (100h); data stays where the source puts it, so
+`jmp start` / `msg db ...` / `start:` places `msg` at 102h as a DOS assembler does. Data
+addresses depend on instruction sizes and the other way round, so the assembler repeats
+the pass with the previous pass's addresses until they settle (two or three passes).
+`call` targets use the same mechanism. EXE: `.data` at 100h and the code from the next
+16-byte boundary after it (spec 6.2 allows either order; with data first, data addresses
+are known before the code is encoded). The stack starts at FFFEh holding 0, so `ret` from
+the program reaches the `int 20h` at offset 0.
+
+Detection (spec 6): `#make_com#`/`#make_exe#` first, then `.model` (flat gives flat; tiny,
+small, compact, medium, large or huge give EXE), then `org` (COM). A 32-bit CPU directive
+(`.386`), `INCLUDE Irvine32.inc` or `.data`/`.code` sections without `.model` give flat,
+because that is how the Visual Studio course writes its programs; anything else is COM.
+Plain Intel/NASM syntax stays flat.
+
+Flat-only constructs: PROC parameters, LOCAL and INVOKE generate 32-bit stack frames; in
+COM and EXE programs they give an error that shows the `[bp+4]` way. `USES` works with
+16-bit registers. The library routines (WriteString, ...) belong to the flat model.
+`xlat` and `retn` are accepted in every model. `in` and `out` read 0 and do nothing, with
+one warning per program.

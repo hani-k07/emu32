@@ -123,21 +123,8 @@ class RegistersPanel(QWidget):
     def __init__(self, mode: CpuMode) -> None:
         super().__init__()
         self.mode = mode
-        self.table = make_table(
-            ["", "Register", f"{mode.bits}-bit", "Low 16", "Bits 15-8", "Bits 7-0"],
-            len(mode.registers),
-        )
+        self.table = make_table(["", "Register", "", "", "", ""], len(mode.registers))
         self.table.setToolTip("Double-click a register to change it while the program is paused.")
-        # The last three columns are parts of the same register, not separate registers.
-        for column, tip in (
-            (2, "The whole register, for example EAX"),
-            (3, "The low 16 bits of the register, for example AX (part of EAX)"),
-            (4, "Bits 15 to 8, the high byte of AX, for example AH (EAX, EBX, ECX and EDX only)"),
-            (5, "Bits 7 to 0, the low byte of AX, for example AL (EAX, EBX, ECX and EDX only)"),
-        ):
-            self.table.horizontalHeaderItem(column).setToolTip(tip)
-        # Never narrower than its columns, so the last two are not cut off.
-        self.table.setMinimumWidth(fit_columns(self.table, [1, 6, 8, 4, 2, 2]))
         self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.table.cellDoubleClicked.connect(
             lambda row, _c: self.edit_requested.emit(self.mode.registers[row])
@@ -145,11 +132,47 @@ class RegistersPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table)
+        self.set_mode(mode)
+
+    def set_mode(self, mode: CpuMode) -> None:
+        """Rows and columns for a program model: 32-bit registers with their parts (flat),
+        or 8086 registers with their bytes and the 386's 32-bit register (COM, EXE)."""
+        self.mode = mode
+        self.table.clearContents()
+        self.table.setRowCount(len(mode.registers))
+        if mode.is_16bit:
+            columns = ["", "Register", "16-bit", "Bits 15-8", "Bits 7-0", "32-bit"]
+            tips = (
+                "The 8086 register, for example AX",
+                "The high byte, for example AH (AX, BX, CX and DX only)",
+                "The low byte, for example AL (AX, BX, CX and DX only)",
+                "The whole 32-bit register it is part of, for example EAX. COM and EXE "
+                "programs may use 32-bit registers, as on a 386",
+            )
+            widths = [1, 6, 4, 2, 2, 8]
+        else:
+            columns = ["", "Register", "32-bit", "Low 16", "Bits 15-8", "Bits 7-0"]
+            # The last three columns are parts of the same register, not separate registers.
+            tips = (
+                "The whole register, for example EAX",
+                "The low 16 bits of the register, for example AX (part of EAX)",
+                "Bits 15 to 8, the high byte of AX, for example AH (EAX, EBX, ECX and EDX only)",
+                "Bits 7 to 0, the low byte of AX, for example AL (EAX, EBX, ECX and EDX only)",
+            )
+            widths = [1, 6, 8, 4, 2, 2]
+        self.table.setHorizontalHeaderLabels(columns)
+        for column, tip in enumerate(tips, start=2):
+            self.table.horizontalHeaderItem(column).setToolTip(tip)
+        # Never narrower than its columns, so the last ones are not cut off.
+        self.table.setMinimumWidth(fit_columns(self.table, widths))
 
     def refresh(self, registers: dict[str, int], before: dict[str, int]) -> None:
         if not registers:
             return
         parts = self.mode.split_registers(registers)
+        if self.mode.is_16bit:
+            self._refresh_16(registers, before, parts)
+            return
         for row, name in enumerate(self.mode.registers):
             changed = before.get(name, registers[name]) != registers[name]
             short = name[1:]  # EAX -> AX, ESI -> SI
@@ -166,6 +189,29 @@ class RegistersPanel(QWidget):
                     sixteen,
                     high,
                     low,
+                ],
+                changed,
+            )
+
+    def _refresh_16(
+        self, registers: dict[str, int], before: dict[str, int], parts: dict[str, int]
+    ) -> None:
+        for row, name in enumerate(self.mode.registers):
+            wide = f"E{name}" if f"E{name}" in registers else None
+            changed = any(
+                before.get(key, registers[key]) != registers[key] for key in (name, wide) if key
+            )
+            high, low = f"{name[0]}H", f"{name[0]}L"
+            set_row(
+                self.table,
+                row,
+                [
+                    CHANGED_MARK if changed else "",
+                    name,
+                    f"{registers[name]:04X}",
+                    f"{parts[high]:02X}" if high in parts and name.endswith("X") else "",
+                    f"{parts[low]:02X}" if low in parts and name.endswith("X") else "",
+                    f"{registers[wide]:08X}" if wide else "",
                 ],
                 changed,
             )
@@ -220,7 +266,7 @@ class FpuPanel(QWidget):
 
 
 class StackPanel(QWidget):
-    """Dwords around ESP, with ESP and EBP marked."""
+    """Words (COM, EXE) or dwords (flat) around the stack pointer, with SP and BP marked."""
 
     ABOVE, BELOW = 6, 18  # rows above ESP (pushed later) and from ESP upward
 
@@ -232,26 +278,34 @@ class StackPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self.table)
 
+    def set_mode(self, mode: CpuMode) -> None:
+        self.mode = mode
+        self.table.clearContents()
+
     def refresh(self, registers: dict[str, int], read_bytes) -> None:
         if not registers:
             return
-        size = self.mode.word_size
-        sp, bp = registers[self.mode.stack_pointer], registers.get("EBP", 0)
-        region = self.mode.region("stack")
+        mode = self.mode
+        size = mode.word_size
+        sp, bp = registers[mode.stack_pointer], registers.get(mode.base_pointer, 0)
+        # The stack grows down from stack_top; the flat model gives it its own region.
+        low = 0 if mode.is_16bit else mode.region("stack").start
         first = sp - self.ABOVE * size
         for row in range(self.table.rowCount()):
             address = first + row * size
-            if not region.start <= address <= region.end - size:
+            if not low <= address <= mode.stack_top - size:
                 set_row(self.table, row, ["", "", "", ""])
                 continue
             data = read_bytes(address, size)
             value = int.from_bytes(bytes(b or 0 for b in data), "little")
-            marks = " ".join(n for n, a in (("ESP", sp), ("EBP", bp)) if a == address)
+            marks = " ".join(
+                n for n, a in ((mode.stack_pointer, sp), (mode.base_pointer, bp)) if a == address
+            )
             signed = value - (1 << 8 * size) if value >> (8 * size - 1) else value
             set_row(
                 self.table,
                 row,
-                [marks, self.mode.format_address(address), f"{value:08X}", str(signed)],
+                [marks, mode.format_address(address), f"{value:0{2 * size}X}", str(signed)],
                 address == sp,
             )
 

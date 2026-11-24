@@ -1,4 +1,34 @@
-"""Starting points for a new file (section 8.2)."""
+"""Starting points for a new file (spec 9.2, 12.1). COM is the default (D80)."""
+
+COM = """; emu32 COM program
+; Code starts at offset 100h. End the program with ret.
+
+org 100h
+
+; write your code here
+
+ret
+"""
+
+EXE = """; emu32 EXE program
+.model small
+.stack 100h
+
+.data
+    ; variables here
+
+.code
+main proc
+    mov ax, @data
+    mov ds, ax
+
+    ; write your code here
+
+    mov ah, 4Ch
+    int 21h
+main endp
+end main
+"""
 
 CONSOLE_MASM = """\
 ; A 32-bit console program in MASM style.
@@ -110,6 +140,11 @@ _start:
 """
 
 TEMPLATES = {
+    # COM and EXE programs are MASM style only; the dialog turns the Intel box off for them.
+    ("com", False): COM,
+    ("com", True): COM,
+    ("exe", False): EXE,
+    ("exe", True): EXE,
     ("console", False): CONSOLE_MASM,
     ("library", False): LIBRARY_MASM,
     ("empty", False): EMPTY_MASM,

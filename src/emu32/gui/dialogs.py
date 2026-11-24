@@ -103,22 +103,42 @@ class NewFileDialog(QDialog):
         self.group = QButtonGroup(self)
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Start from:"))
-        for key, label in (
-            ("console", "32-bit &console program (MASM style)"),
-            ("library", "32-bit with &library routines"),
-            ("empty", "&Empty workspace"),
+        for key, label, note in (
+            ("com", "&COM program", "org 100h ... ret, as in the 8086 lab. The default."),
+            ("exe", "&EXE program", ".model small with .data and .code, ends with int 21h/4Ch."),
+            ("console", "32-bit &flat program", ".386 and .model flat, 32-bit registers."),
+            (
+                "library",
+                "32-bit flat with &library routines",
+                "Irvine32 style: WriteString, ReadInt.",
+            ),
+            ("empty", "&Empty workspace", "A blank page."),
         ):
             radio = QRadioButton(label)
             radio.setObjectName(key)
+            radio.setToolTip(note)
             self.group.addButton(radio)
             layout.addWidget(radio)
+            hint = QLabel(note)
+            hint.setObjectName("muted")
+            hint.setContentsMargins(24, 0, 0, 4)
+            layout.addWidget(hint)
         self.group.buttons()[0].setChecked(True)
-        self.intel = QCheckBox("Use &Intel/NASM syntax")
+        self.intel = QCheckBox("Plain &Intel/NASM syntax")
         layout.addWidget(self.intel)
+        # COM and EXE programs are MASM style.
+        self.group.buttonToggled.connect(self._update_intel)
+        self._update_intel()
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
+
+    def _update_intel(self, *_args) -> None:
+        dos = self.template_key() in ("com", "exe")
+        self.intel.setEnabled(not dos)
+        if dos:
+            self.intel.setChecked(False)
 
     def template_key(self) -> str:
         return self.group.checkedButton().objectName()

@@ -1,9 +1,9 @@
 """`int 21h` console services, selected by AH.
 
 01h read a character into AL (echoed), 02h print DL, 09h print the '$'-terminated string at
-EDX, 4Ch end the program, 40h print EDX as a signed decimal. 40h is an emu32 extension; in DOS
-it means "write to file", which emu32 does not provide. It reads EDX, not EAX, because
-setting AH would overwrite bits 8-15 of EAX (see docs/decisions.md D19).
+DS:DX (COM, EXE) or EDX (flat), 4Ch end the program, 40h print EDX as a signed decimal. 40h
+is an emu32 extension; in DOS it means "write to file", which emu32 does not provide. It
+reads EDX, not EAX, because setting AH would overwrite bits 8-15 of EAX (D19).
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ def handle_int21(emu: Emulator, console: Console) -> None:
     function = emu.register("AH")
     # EIP already points past `int 21h`; errors and retries refer to the int itself.
     here = emu.register("EIP") - INT_INSTRUCTION_SIZE
+    pointer = "DX" if emu.mode.is_16bit else "EDX"  # every segment is 0 in COM and EXE
     try:
         if function == 0x01:
             char = console.read_char()
@@ -27,7 +28,9 @@ def handle_int21(emu: Emulator, console: Console) -> None:
         elif function == 0x02:
             console.write_bytes(bytes([emu.register("DL")]))
         elif function == 0x09:
-            console.write_bytes(read_terminated(emu, emu.register("EDX"), ord("$"), "int 21h/09h"))
+            console.write_bytes(
+                read_terminated(emu, emu.register(pointer), ord("$"), "int 21h/09h")
+            )
         elif function == 0x4C:
             emu.exit_program(emu.register("AL"))
         elif function == 0x40:

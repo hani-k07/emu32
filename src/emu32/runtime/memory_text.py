@@ -14,7 +14,7 @@ def read_terminated(emu: Emulator, address: int, terminator: int, what: str) -> 
     where = emu.mode.format_address(address)
     if region is None:
         hint = ""
-        if address < 0x1_0000:
+        if address < 0x1_0000 and not emu.mode.is_16bit:
             # The usual cause: the address was loaded into DX instead of EDX.
             hint = "; load the full 32-bit address, for example: mov edx, OFFSET message"
         raise ServiceError(f"{what}: address {where} is outside the program's memory{hint}")
