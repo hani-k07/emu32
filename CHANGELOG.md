@@ -4,7 +4,13 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
-## 0.16.0 (2026-11-24)
+## 0.16.1 (2026-11-24)
+
+- Fixed: the build's self-test still looked for the examples in their old folder, so the
+  0.16.0 build stopped before publishing. 0.16.0 was never released; 0.16.1 has its
+  changes. A test now runs the self-test on every commit.
+
+## 0.16.0 (2026-11-24, not released)
 
 - New: 14 COM examples (hello world, read a key, sum of an array, compare and branch,
   LOOP, string reverse, stack parameters with BP, a macro, buffered input, factorial,
