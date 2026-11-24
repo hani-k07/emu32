@@ -49,8 +49,8 @@ Download ZIP** button gives the source code, not the program.
 
 <table>
 <tr>
-<td width="50%"><img alt="Editor with syntax coloring, line numbers and a breakpoint, light theme (the default)" src="docs/images/editor-light.png"><br><sub><b>Editor</b>, light theme (the default). Click the margin for a breakpoint.</sub></td>
-<td width="50%"><img alt="The same editor in the dark theme" src="docs/images/editor-dark.png"><br><sub><b>Dark theme</b>, a choice in Options.</sub></td>
+<td width="50%"><img alt="Editor with syntax coloring, line numbers and a breakpoint, dark theme (the default)" src="docs/images/editor-dark.png"><br><sub><b>Editor</b>, dark theme (the default). Click the margin for a breakpoint.</sub></td>
+<td width="50%"><img alt="The same editor in the light theme" src="docs/images/editor-light.png"><br><sub><b>Light theme</b>, a choice in Options.</sub></td>
 </tr>
 <tr>
 <td width="50%"><img alt="Two compile errors listed with line numbers and marked in the margin" src="docs/images/errors-light.png"><br><sub><b>Errors</b> with line numbers. Click one to jump to the line.</sub></td>

@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.12.1 (2026-11-24)
+
+- Changed: the default theme is dark again. Light is a choice in Options and is remembered.
+- Changed: the compile message names the program model and counts a COM program's data
+  separately ("COM: 8 bytes of code, 3 bytes of data"); "1 byte" instead of "1 bytes".
+
 ## 0.12.0 (2026-11-24)
 
 COAL-lab programs: COM and EXE programs run as written, and COM is the default.

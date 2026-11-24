@@ -11,7 +11,7 @@ Both run in CI.
 | File | Holds |
 |---|---|
 | `tokens.py` | token names, spacing, radius, type scale |
-| `dark.py`, `light.py` | the two themes a user can choose; light is the default |
+| `dark.py`, `light.py` | the two themes a user can choose; dark is the default |
 | `contrast.py` | the high-contrast palette used by projector mode |
 | `stylesheet.py` | one Qt stylesheet template, filled from a palette |
 | `theme_manager.py` | applies a theme (palette, stylesheet, UI font) and hands out colors |
@@ -76,9 +76,9 @@ instruction a `>`, breakpoints a `B` or a dot in the gutter.
 
 ## Themes
 
-- Light is the default, on every start without a saved choice, whatever the system setting
-  says: it is bright and easy to read in a classroom. Dark is a choice in Options, which is
-  remembered.
+- Dark is the default, on every start without a saved choice, whatever the system setting
+  says (D82). Light is a choice in Options, which is remembered. Projector mode is the
+  high-contrast palette for a class.
 - Light uses the same token names. Projector mode switches to the high-contrast palette and
   larger fonts, and back again.
 - Switching theme takes effect at once, also for colors drawn in code (gutter, syntax,
