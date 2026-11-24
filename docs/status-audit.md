@@ -124,7 +124,7 @@ the flat-model work, the debugger, the GUI and the release pipeline are done and
 | Lab programs (13.2) | P0 | Missing | `tests/lab_programs/` does not exist; flat course programs in `tests/vs_programs`, `tests/course_topics` |
 | GUI smoke tests (13.1) | P0 | Partial | `test_gui_smoke.py` runs one theme; theme switching is tested in `test_editor_window.py`, but the smoke run is not repeated in both |
 | Manual checklist (13.3) | P1 | Missing | no `docs/ui-checklist.md` |
-| Release zip (15.1) | P0 | Differs | two zips (D67) |
+| Release zip (15.1) | P0 | Done | one zip with setup, `portable/`, README, licenses (D83) |
 | Installer (15.2) | P0 | Done, wizard images missing | `emu32.iss` |
 | pip install (15.3) | P1 | Done | README; `pyproject.toml` entry point |
 | CI (15.4) | P0 | Done | `ci.yml` runs rules, contrast, ruff, pytest on Windows and Ubuntu |
@@ -150,8 +150,7 @@ says it wins; each needs a yes or no before it is changed.
 
 1. **Default program model.** Spec: COM. Current: flat with Irvine32 (the Visual Studio goal).
 2. **Default theme.** Spec: dark. Answered: dark (D82).
-3. **Release layout.** Spec: one zip with `emu32-setup.exe`, `portable/`, README, licenses.
-   Current: two zips (D67, owner's request).
+3. **Release layout.** Answered: one zip as the spec says (D83).
 4. **`max_steps` default.** Spec: 1,000,000. Current: 100,000,000, because an ordinary
    student program hit the 1,000,000 limit (D65). Proposal: keep it.
 5. **Icon set.** Spec: a third-party set such as Lucide or Tabler. Current: original drawn

@@ -4,6 +4,12 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.13.0 (2026-11-24)
+
+- Changed: each release is one download, `emu32-<version>-windows.zip`, with the
+  installer, a `portable` folder for use without installing, `README.txt` and the
+  licenses. The separate portable zip is gone.
+
 ## 0.12.1 (2026-11-24)
 
 - Changed: the default theme is dark again. Light is a choice in Options and is remembered.
