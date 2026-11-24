@@ -758,3 +758,16 @@ the release workflow runs before PyInstaller, so no binary icon is committed and
 files cannot drift from the app. The .ico holds PNG entries for 16 to 256 px. The colors
 are the two accent blues of the dark and light palettes and stay the same in every theme.
 `docs/images/logo.png` (for the README) is made by the same script. See docs/brand.md.
+
+## D80. Master specification adopted; COM is the default model (2026-11-24)
+
+The owner replaced the earlier specification with a master specification whose first
+requirement is COAL-lab programs in the COM and EXE models (`org 100h` ... `ret`). The
+audit (`docs/status-audit.md`) found those models missing. The owner confirmed that COM
+becomes the default program model; the flat 32-bit model with Irvine32 routines stays
+fully supported. Earlier decisions that differ from the master specification (D65 step
+limit, D67 two release zips, D77 light default theme, original drawn icons) stay in force
+until the owner decides on each.
+
+The ignore rules and the repository-rules script now block `*PROMPT*.md`, so
+specification files with any prefix stay local.
