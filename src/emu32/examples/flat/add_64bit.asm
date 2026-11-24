@@ -1,5 +1,6 @@
-; Adding two 64-bit numbers with 32-bit registers: ADD the low halves, then ADC the
-; high halves so the carry from the low half is not lost. Watch CF in the Flags panel.
+; Adds two 64-bit numbers with 32-bit registers: ADD the low halves, ADC the high halves.
+; Level: Intermediate
+; ADC adds the carry from the low half, so it is not lost. Watch CF in the Flags panel.
 INCLUDE Irvine32.inc
 
 .data

@@ -4,6 +4,18 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.16.0 (2026-11-24)
+
+- New: 14 COM examples (hello world, read a key, sum of an array, compare and branch,
+  LOOP, string reverse, stack parameters with BP, a macro, buffered input, factorial,
+  bubble sort, find maximum, Fibonacci, 32-bit multiply in a 16-bit program) and 2 EXE
+  examples. The Examples menu groups them by model, COM first, with a level and a
+  description.
+- New: a Model box in the editor toolbar (Auto, COM, EXE, 32-bit flat). The status bar
+  shows the model, Ready/Edited/Compiled/Errors, the line and column, and the file name.
+- New: the emulator shows the run state (Ready, Running, Paused, Finished, Error, Waiting
+  for input), and COM/EXE programs have a "Show 32-bit registers" box.
+
 ## 0.15.0 (2026-11-24)
 
 - New: the Screen window is an 80 x 25 text screen with a cursor and 16 colors. The plain

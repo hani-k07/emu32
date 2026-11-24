@@ -22,9 +22,12 @@ specification. Updated after each milestone; the latest update is at the end.
   unsupported-function message (D86, `tests/test_dos_services.py`). The 80 x 25 screen
   with cursor, 16 colors, an Output log tab and keys from the grid (D87,
   `tests/test_text_screen.py`).
-- B5/B6: New File dialog offers COM (default), EXE, flat, flat with library, empty; the
-  Registers and Stack panels follow the model. Model selector, status-bar model, run-state
-  pill: still missing.
+- B5 (editor): **Done.** New File dialog with COM default; Model box (Auto, COM, EXE,
+  flat) with a mismatch warning; status bar with model, build state, line and column, file
+  name; examples grouped by model (D88).
+- B6 (emulator): **Done** except the change-highlight fade (B8). Registers and Stack follow
+  the model; "Show 32-bit registers" for COM/EXE; run-state indicator; 80 x 25 screen.
+- Examples (spec 12.2): **Done.** 14 COM, 2 EXE, 11 flat, each with a golden test.
 - Tests: 460 passed.
 
 ## A0 findings

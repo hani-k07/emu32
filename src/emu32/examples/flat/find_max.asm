@@ -1,4 +1,5 @@
 ; Finds the largest value in an array of signed numbers.
+; Level: Basic
 ; Signed numbers need signed jumps: JG and JLE, not JA and JBE.
 INCLUDE Irvine32.inc
 

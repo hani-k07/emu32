@@ -33,7 +33,7 @@ def test_sum_array_example_runs_to_the_right_answer():
     from emu32.session import Session
 
     session = Session()
-    program = session.load((EXAMPLES / "sum_array.asm").read_text(encoding="utf-8"))
+    program = session.load((EXAMPLES / "flat" / "sum_array.asm").read_text(encoding="utf-8"))
     assert session.run().reason is StopReason.EXITED
     assert session.emulator.register("EAX") == 100
     assert dword(session.emulator, program.symbols["total"].address) == 100

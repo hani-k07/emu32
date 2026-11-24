@@ -176,11 +176,17 @@ def test_welcome_dialog_choices(qtbot):
 
 
 def test_examples_open_and_compile(window):
-    names = [a.text() for a in window.examples_menu.actions()]
-    assert "sum array" in names
-    window.examples_menu.actions()[names.index("sum array")].trigger()
-    assert window.current().title == "sum_array.asm"
-    assert window.compile() is not None
+    groups = [a.menu() for a in window.examples_menu.actions() if a.menu()]
+    assert [g.title().replace("&", "") for g in groups] == [
+        "COM programs (8086 lab)", "EXE programs", "32-bit flat programs",
+    ]  # fmt: skip
+    com = {a.text(): a for a in groups[0].actions()}
+    action = com["hello world  (Basic)"]
+    assert "int 21h" in action.toolTip()
+    action.trigger()
+    assert window.current().title == "hello_world.asm"
+    program = window.compile()
+    assert program is not None and program.mode.key == "com"
 
 
 def test_breakpoints_and_bookmarks_follow_their_lines(window):
@@ -270,3 +276,34 @@ def test_toolbar_icons_follow_the_theme(window):
     window.switch_theme("light")
     assert window.act["save"].icon().cacheKey() != before
     window.switch_theme("dark")
+
+
+def test_model_box_overrides_detection_and_warns(window):
+    window.add_document("org 100h\nmov ax, 1\nret\n")
+    window._update_model_label()
+    assert window.model_label.text() == "COM (auto)"
+    assert window.compile().mode.key == "com"
+    window.model_box.setCurrentIndex(window.model_box.findData("exe"))
+    assert window.model_label.text() == "EXE (source looks COM)"
+    program = window.compile()
+    assert program.mode.key == "exe"
+    texts = [window.messages.item(i).text() for i in range(window.messages.count())]
+    assert any("looks like a COM program" in t for t in texts)
+    window.model_box.setCurrentIndex(0)
+    assert window.compile().mode.key == "com"
+
+
+def test_status_bar_shows_build_state_position_and_file(window):
+    doc = window.add_document("org 100h\nret\n", title="lab1.asm")
+    assert window.file_label.text() == "lab1.asm"
+    cursor = doc.textCursor()
+    cursor.movePosition(cursor.MoveOperation.Down)
+    cursor.movePosition(cursor.MoveOperation.Right)
+    doc.setTextCursor(cursor)
+    assert window.position_label.text() == "Ln 2, Col 2"
+    window.compile()
+    assert window.build_label.text() == "Compiled"
+    doc.insertPlainText("bogus\n")
+    assert window.build_label.text() == "Edited"
+    window.compile()
+    assert window.build_label.text() == "Errors: 2"  # "rbogus" and "et"

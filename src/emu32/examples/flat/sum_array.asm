@@ -1,4 +1,5 @@
 ; Adds up the numbers in an array and prints the sum.
+; Level: Basic
 ; The result also stays in EAX and in the variable total.
 INCLUDE Irvine32.inc
 .386

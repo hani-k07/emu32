@@ -375,3 +375,34 @@ def test_fpu_panel_shows_the_register_stack(window, qtbot):
     assert cell(window.fpu.table, 1, 2) == "1"
     assert cell(window.fpu.table, 2, 2) == "empty"
     assert "TOP=6" in window.fpu.status.text()
+
+
+def test_run_state_pill_follows_the_program(window, qtbot):
+    assert window.state_pill.text() == "No program"
+    assert window.load_source("org 100h\nmov ah, 1\nint 21h\nret\n", title="key.asm")
+    assert window.run_state == "ready"
+    window.command("step")
+    finish(qtbot, window)
+    assert window.run_state == "paused"
+    window.command("run")
+    qtbot.waitUntil(lambda: window.run_state == "waiting", timeout=5000)
+    assert window.state_pill.text() == "Waiting for input"
+    window.session.console.feed("x")
+    finish(qtbot, window)
+    assert window.run_state == "finished"
+    assert window.load_source("org 100h\nmov ax, 1\nmov bl, 0\ndiv bl\n", title="bad.asm")
+    window.command("run")
+    finish(qtbot, window)
+    assert window.run_state == "error"
+
+
+def test_show_32_bit_toggle_in_com_programs(window):
+    assert window.load_source("org 100h\nmov eax, 12345678h\nret\n", title="t.asm")
+    panel = window.registers
+    assert panel.show_32.isVisibleTo(window)
+    panel.show_32.setChecked(False)
+    assert panel.table.isColumnHidden(5)
+    panel.show_32.setChecked(True)
+    assert not panel.table.isColumnHidden(5)
+    assert window.load_source(LOOP, title="loop.asm")  # flat: the box goes, columns stay
+    assert not panel.show_32.isVisibleTo(window) and not panel.table.isColumnHidden(5)

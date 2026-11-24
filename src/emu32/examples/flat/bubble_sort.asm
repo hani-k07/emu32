@@ -1,4 +1,5 @@
 ; Sorts an array with bubble sort and prints the result.
+; Level: Intermediate
 ; Each pass moves the largest remaining value to the end, so every pass
 ; needs one comparison less than the one before.
 INCLUDE Irvine32.inc
