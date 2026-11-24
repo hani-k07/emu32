@@ -53,8 +53,8 @@ Open the `.asm` file, press **F5** (Compile), then **Ctrl+F5** (Emulate).
   are not supported.
 - No Windows API beyond `ExitProcess` and no `MsgBox`.
 - Text in angle brackets is read without case (`FORC c, <ABC>` gives `a b c`).
-- 16-bit DOS programs (`.model small`, `mov ax, @data`) are rejected with a hint:
-  emu32 runs 32-bit code.
+- 16-bit DOS programs (`org 100h`, `.model small`, `mov ax, @data`) run too, as COM and
+  EXE programs; see "Program models" in the Syntax reference.
 
 The assembler names any construct it does not support and says what to write
 instead.

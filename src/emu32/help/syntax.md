@@ -171,28 +171,59 @@ AddThree ENDP
 - Labels inside a procedure belong to that procedure, so two procedures may both use
   `next:` or `done:`. A label with two colons (`retry::`) is visible everywhere.
 
+## Program models
+
+| Model | Write it like this | Memory |
+|---|---|---|
+| COM (default) | `org 100h` ... `ret` | one 64 KB area at 0; the program starts at 100h; data stays where you write it |
+| EXE | `.model small`, `.data`, `.code`, `mov ax, @data` / `mov ds, ax`, end with `int 21h/4Ch` | the same 64 KB area; `.data` at 100h, code after it |
+| 32-bit flat | `.386` and `.model flat`, or `INCLUDE Irvine32.inc` | code at `00400000` (read-only), data at `00500000`, stack below `00800000` |
+
+emu32 picks the model from the source: `org` means COM, `.model small` (or tiny,
+compact, medium, large) means EXE, `.model flat`, `.386` or `INCLUDE Irvine32.inc` means
+flat. A file with none of these is a COM program. `#make_com#` and `#make_exe#` lines
+choose the model too.
+
+COM and EXE programs run like an 8086: `call` and `ret` use 2-byte return addresses, so
+after `push bp` / `mov bp, sp` the first parameter is `[bp+4]`; `loop` counts CX (CX = 0
+means 65,536 times); `movsb`, `lodsb` and the other string instructions use SI, DI and
+CX. 32-bit registers (EAX, ECX, ...) work in the same program, as on a 386. All segment
+registers are 0 and `@data` is 0, so `mov ax, @data` / `mov ds, ax` changes nothing.
+`ret` at the end of a COM program ends it.
+
+PROC parameters, `LOCAL` and `INVOKE` belong to 32-bit flat programs; in COM and EXE
+programs pass parameters with `push` and read them with `[bp+4]`, `[bp+6]`, ...
+
 ## int 21h services
 
-Put the function number in AH, then write `int 21h`.
+Put the function number in AH, then write `int 21h`. In COM and EXE programs a string or
+buffer address goes in DX; in 32-bit flat programs, in EDX.
 
 | AH | Does |
 |---|---|
-| `01h` | reads one character into AL and shows it |
+| `01h` | reads one character into AL and shows it (Enter gives 0Dh) |
 | `02h` | prints the character in DL |
-| `09h` | prints the text at EDX, up to a `$` |
+| `06h` | with DL = FFh: reads a typed character into AL without waiting (ZF = 1 if none); otherwise prints DL |
+| `07h`, `08h` | reads one character into AL without showing it |
+| `09h` | prints the text at DX (flat: EDX), up to a `$` |
+| `0Ah` | reads a line into the buffer at DX (flat: EDX): byte 0 is the buffer size, DOS puts the count in byte 1, then the characters and 0Dh |
+| `2Ah` | date: CX = year, DH = month, DL = day, AL = day of the week (0 = Sunday) |
+| `2Ch` | time: CH = hour, CL = minute, DH = second, DL = hundredths |
 | `4Ch` | ends the program; AL is the exit code |
-| `40h` | prints EDX as a signed decimal number (emu32 only; in DOS this function writes to a file) |
+| `40h` | prints EDX as a signed decimal number (emu32 only, flat programs; in DOS this function writes to a file) |
 
-## Memory
+`int 20h` ends the program too.
 
-| Area | Address | Notes |
+## int 10h and int 16h services
+
+| Interrupt | AH | Does |
 |---|---|---|
-| code | `00400000` | read-only: writing here is an error |
-| data | `00500000` | variables, in the order they are written |
-| stack | `00700000` to `00800000` | ESP starts at the top |
+| `int 10h` | `0Eh` | prints the character in AL |
+| `int 10h` | `00h` | sets a video mode, which clears the screen |
+| `int 16h` | `00h` | waits for a key: AH = scan code, AL = character |
+| `int 16h` | `01h` | checks for a key: ZF = 1 if none, else AX = the key, which stays for the next read |
 
-Memory is flat: there are no segments, so `mov ax, @data` and `mov ds, ax` are
-not needed and are rejected with a hint.
+Any other function stops the program with "int XXh function YYh is not supported yet".
 
 ## Decision directives
 

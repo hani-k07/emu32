@@ -483,7 +483,11 @@ class Emulator:
                 address = pc - 2
             elif self.read_memory(pc - 1, 1)[0] in (0xCC, 0xCE, 0xF1):
                 address = pc - 1
-            self._fault = (f"interrupt {number:02X}h is not supported", address)
+            function = self.register("AH")
+            self._fault = (
+                f"int {number:02X}h function {function:02X}h is not supported yet",
+                address,
+            )
         uc.emu_stop()
 
     def _on_invalid_memory(

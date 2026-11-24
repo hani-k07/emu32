@@ -98,7 +98,7 @@ def test_stop_from_another_thread():
         ("jmp 0x100", "outside the program's memory", 0x100),
         ("ud2", "invalid instruction", CODE),
         ("xor ecx, ecx\ndiv ecx", "divide error", CODE + 2),
-        ("nop\nint 0x21", "interrupt 21h is not supported", CODE + 1),
+        ("nop\nint 0x21", "int 21h function 00h is not supported yet", CODE + 1),
     ],
 )
 def test_runtime_errors_report_message_and_address(run_asm, source, text, address):

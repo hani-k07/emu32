@@ -1,8 +1,9 @@
-"""Console I/O for programs: `int 21h` services and the library routines."""
+"""Console I/O for programs: DOS and BIOS interrupt services and the library routines."""
 
 from emu32.emulator import Emulator
 from emu32.runtime import library_routines
 from emu32.runtime.console import Console, InputCancelled
+from emu32.runtime.services_bios import handle_int10, handle_int16
 from emu32.runtime.services_int21 import handle_int21
 
 
@@ -13,6 +14,8 @@ def attach(emu: Emulator, console: Console) -> dict[str, int]:
     """
     emu.interrupt_handlers[0x20] = lambda e: e.exit_program(0)
     emu.interrupt_handlers[0x21] = lambda e: handle_int21(e, console)
+    emu.interrupt_handlers[0x10] = lambda e: handle_int10(e, console)
+    emu.interrupt_handlers[0x16] = lambda e: handle_int16(e, console)
     if not emu.mode.is_16bit:  # the library routines belong to the flat model (spec 8.4)
         emu.setup_hooks.append(lambda e: library_routines.install(e, console))
         return library_routines.routine_addresses(emu.mode)

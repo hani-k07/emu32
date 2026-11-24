@@ -7,15 +7,20 @@ there is one, the supported form.
 
 ## Compared with 16-bit educational emulators
 
-- **32-bit only.** Version 1 runs IA-32 code. 16-bit real-mode programs are not supported;
-  a 16-bit mode is planned.
-- **Flat memory, no segments.** Code, data and stack live in one 32-bit address space
-  (code at `00400000`, data at `00500000`, stack below `00800000`). Segment registers are
-  not used. `mov ax, @data` and `mov ds, ax` are not needed and are rejected with a hint.
+- **A 386 in real mode, not an 8086.** COM and EXE programs run on the CPU's 16-bit real
+  mode (D81): 8086 instructions behave as on an 8086, and 386 instructions and 32-bit
+  registers work as well. Instruction timing is not modelled.
+- **One 64 KB area, segments 0.** COM and EXE programs get one 64 KB area at address 0
+  with every segment register 0 and `@data` = 0. A program that loads another segment value
+  (for example `0B800h` for video memory) stops with "reads memory outside the program's
+  memory". An EXE program's `.data` starts at 100h, with the code after it.
+- **32-bit flat programs** keep code at `00400000`, data at `00500000` and the stack below
+  `00800000`; there, `mov ax, @data` is rejected with a hint.
 - **Library routines for most I/O.** Console output and input use routines such as
   `WriteString` and `ReadInt`. A small set of `int 21h` services is provided for programs
   written in the DOS style.
-- **`.model small` and `org`.** Accepted with a warning and treated as a flat program.
+- **No video memory or graphics modes.** `int 10h` covers teletype output and clearing
+  the screen; `in` and `out` read 0 and do nothing.
 - **Memory protection.** Code is read-only and data cannot be executed. Writing into the code
   area or jumping into data stops the program with a message.
 
@@ -50,9 +55,13 @@ there is one, the supported form.
 
 ## Console services
 
-- `int 21h` supports functions 01h, 02h, 09h and 4Ch as in DOS, plus 40h, which in emu32
-  prints EDX as a signed decimal (in DOS, 40h writes to a file). Other functions stop the
-  program with a message.
+- `int 21h` supports functions 01h, 02h, 06h, 07h, 08h, 09h, 0Ah, 2Ah, 2Ch and 4Ch as in
+  DOS, plus 40h, which in emu32 prints EDX as a signed decimal (in DOS, 40h writes to a
+  file). `int 10h` supports 00h and 0Eh, `int 16h` 00h and 01h, and `int 20h` ends the
+  program. Other functions stop the program with "int XXh function YYh is not supported
+  yet".
+- Text typed into the Screen window has no key positions; `int 16h` gives each character
+  the US-keyboard scan code of the key that types it, or 0.
 - The library routines are emu32's own implementations of the commonly used console
   routines. Details such as how `ReadInt` reports invalid input may differ from other
   libraries: emu32 sets OF=1 and returns 0.

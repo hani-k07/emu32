@@ -848,3 +848,22 @@ The master specification (10.7) asks for a third-party open-source icon set such
 or Tabler. The owner chose to keep emu32's original icons (`gui/icons.py`): QPainter line
 drawings on a 24-unit grid, colored from theme tokens, cached per theme. They are part of
 emu32 under its own license, so no icon license has to be tracked or shipped.
+
+## D86. DOS and BIOS console services (2026-11-24)
+
+The P0 and most P1 services of spec 8.2 are in (`runtime/services_int21.py`,
+`runtime/services_bios.py`). Choices:
+
+- `int 21h/0Ah` echoes the typed characters and stores at most size - 1 of them, then
+  0Dh; a longer line is cut, as DOS stops accepting characters. Like DOS, Enter is not
+  echoed as a new line (DOS moves the cursor back to the start of the line), so programs
+  print their own CR LF after it. A buffer with byte 0 = 0 is an error.
+- `int 21h/01h`, `07h`, `08h` and `int 16h` give 0Dh for Enter.
+- `int 16h` scan codes are those of a US keyboard (IBM PC set 1), looked up from the typed
+  character; there are no key positions in typed text. Extended keys (arrows, F1) cannot be
+  typed into the Screen window and are not provided.
+- `int 10h/0Eh` ignores BEL. `int 10h/00h` clears the screen whatever the mode. Cursor
+  positioning, scrolling and colors (`02h`, `03h`, `06h`, `09h`, `13h`) need the 80 x 25
+  screen and come with it.
+- An interrupt or function without a service stops the program with the spec's wording,
+  "int XXh function YYh is not supported yet", at the `int` line.

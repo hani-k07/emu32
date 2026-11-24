@@ -4,6 +4,16 @@ Versions follow [semantic versioning](https://semver.org): within one major vers
 programs that assemble and run keep working, so a course can use one version for a
 whole semester.
 
+## 0.14.0 (2026-11-24)
+
+- New DOS services: `int 21h` 0Ah (read a line into a buffer), 06h (direct console I/O),
+  07h and 08h (read without echo), 2Ah (date), 2Ch (time).
+- New BIOS services: `int 10h` 0Eh (print AL) and 00h (set mode, clears the screen);
+  `int 16h` 00h (wait for a key, with scan code) and 01h (check for a key).
+- Changed: an unsupported interrupt or function stops with "int XXh function YYh is not
+  supported yet" and the line.
+- Docs: the Syntax reference explains the COM, EXE and flat program models.
+
 ## 0.13.0 (2026-11-24)
 
 - Changed: each release is one download, `emu32-<version>-windows.zip`, with the
