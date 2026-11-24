@@ -841,3 +841,10 @@ Supersedes D67.
 The owner kept D65's default over the master specification's 1,000,000 (spec 4.1 rule 5):
 an ordinary student program with a delay loop runs about 50 million instructions. The
 limit stays configurable in Options, and Stop works at any time.
+
+## D85. emu32 keeps its own drawn icons (2026-11-24)
+
+The master specification (10.7) asks for a third-party open-source icon set such as Lucide
+or Tabler. The owner chose to keep emu32's original icons (`gui/icons.py`): QPainter line
+drawings on a 24-unit grid, colored from theme tokens, cached per theme. They are part of
+emu32 under its own license, so no icon license has to be tracked or shipped.
